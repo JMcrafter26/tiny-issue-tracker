@@ -25,15 +25,15 @@ if (!defined("TIT_INCLUSION")) {
 	// Mandatory fields: username, password (md5 hash)
 	// Optional fields: email, admin (true/false)
 
-	$USERS = array(
-		array("username" => "admin", "password" => md5("admin"), "email" => "admin@example.com", "admin" => true),
-		array("username" => "user", "password" => md5("user"), "email" => "user@example.com"),
-	);
+	// $USERS = array(
+	// 	array("username" => "admin", "password" => md5("admin"), "email" => "admin@example.com", "admin" => true),
+	// 	// array("username" => "user", "password" => md5("user"), "email" => "user@example.com"),
+	// );
 
 	// PDO Connection string ()
-	// eg, SQlite: sqlite:<filename> (Warning: if you're upgrading from an earlier version of TIT, you have to use "sqlite2"!)
+	// eg, SQlite: sqlite:<filename> (Warning: if you're upgrading from an earlier version of t1t, you have to use "sqlite2"!)
 	//     MySQL: mysql:dbname=<dbname>;host=<hostname>
-	$DB_CONNECTION = "sqlite:tit.db";
+	$DB_CONNECTION = "sqlite:t1t.db";
 	$DB_USERNAME = "";
 	$DB_PASSWORD = "";
 
@@ -61,22 +61,28 @@ foreach ($_POST as $k => $v) $_POST[$k] = stripslashes($v);
 
 // Here we go...
 session_start();
+// Check if db exists
+try {
+	$db = new PDO($DB_CONNECTION, $DB_USERNAME, $DB_PASSWORD);
+} catch (PDOException $e) {
+	die("DB Connection failed: " . $e->getMessage());
+}
 
 // check for login post
 $message = "";
 if (isset($_POST["login"])) {
-	$n = check_credentials($_POST["u"], md5($_POST["p"]));
 	// die(json_encode($n));
-	if ($n >= 0) {
-		$_SESSION['tit'] = $USERS[$n];
+	if (check_credentials($_POST["u"], $_POST["p"])) {
 
 		header("Location: ?");
-	} else $message = "Invalid username or password";
+	} else {
+		 $message = "Invalid username or password";
+	}
 }
 
 // check for logout
 if (isset($_GET['logout'])) {
-	$_SESSION['tit'] = array();  // username
+	$_SESSION['t1t'] = array();  // username
 	// destroy session
 	session_destroy();
 	header("Location: ?");
@@ -91,11 +97,23 @@ $login_html = "<html>
 	.container {
 		display: flex;
 		justify-content: center;
-		height: 100vh;
-	
-	} input{font-family:sans-serif;font-size:11px;} label{display:block;}
+		margin-top: 10vh;
+	} 
+	label{display:block;}
 	h2 {text-align:center;}
 	p {text-align:center;}
+	form input {width: 100%; font-family:sans-serif;font-size:11px;}
+			form {
+				padding: 20px;
+				width: 150px;
+				border: 1px solid var(--border);
+				border-radius: 15px;
+			}
+	@media only screen and (max-width: 600px) {
+		form {
+			width: 100%;
+		}
+	}
 	</style>
 </head>
 						 <body>
@@ -108,23 +126,24 @@ $login_html = "<html>
 						 </form></div></body></html>";
 
 // show login page on bad credential
-// if (check_credentials() == -1) die($login_html);
-if (!isset($_SESSION['tit']['username']) || !isset($_SESSION['tit']['password']) || check_credentials($_SESSION['tit']['username'], $_SESSION['tit']['password']) == -1) die($login_html);
 
-// Check if db exists
-try {
-	$db = new PDO($DB_CONNECTION, $DB_USERNAME, $DB_PASSWORD);
-} catch (PDOException $e) {
-	die("DB Connection failed: " . $e->getMessage());
+
+
+// if (check_credentials() == -1) die($login_html);
+if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password']) || !check_credentials($_SESSION['t1t']['username'], $_SESSION['t1t']['password'])) {
+	check_first_time();
+	 die($login_html);
 }
 
 // create tables if not exist
 $db->exec("CREATE TABLE if not exists issues (id INTEGER PRIMARY KEY, title TEXT, description TEXT, user TEXT, status INTEGER NOT NULL DEFAULT '0', priority INTEGER, notify_emails TEXT, entrytime DATETIME)");
 $db->exec("CREATE TABLE if not exists comments (id INTEGER PRIMARY KEY, issue_id INTEGER, user TEXT, description TEXT, entrytime DATETIME)");
 
+
 $issue = [];
 $comments = [];
 $status = 0;
+$USERS = $db->query("SELECT id, username, email, entrytime, admin FROM users")->fetchAll();
 
 
 if (isset($_GET["id"])) {
@@ -136,15 +155,20 @@ if (isset($_GET["id"])) {
 	// add user email to comments
 	foreach ($comments as $i => $comment) {
 		// add gravatar hash
-		$comments[$i]['gravatar'] = md5(strtolower(trim($USERS[array_search($comment['user'], array_column($USERS, 'username'))]['email'])));
+		$comments[$i]['gravatar'] = md5($USERS[array_search($comment['user'], array_column($USERS, 'username'))]['email']);
 	}
 }
 
 // if no issue found, go to list mode
+if (isset($_GET['admin-area'])) {
+	// check if user is admin
+	if ($_SESSION['t1t']['admin']) {
+		$mode = "admin";
+	}
+}
+
 if (!isset($issue) || count($issue) == 0) {
-
-
-	// show all issues
+	if ($mode != "admin") {
 
 	$status = 0;
 	if (isset($_GET["status"]))
@@ -167,7 +191,8 @@ if (!isset($issue) || count($issue) == 0) {
 
 	// $issue = [];
 
-	$mode = "list";
+		$mode = "list";
+	}
 } else {
 	$issue = $issue[0];
 	$mode = "issue";
@@ -184,7 +209,7 @@ if (isset($_POST["createissue"])) {
 	$title = pdo_escape_string($_POST['title']);
 	$description = pdo_escape_string($_POST['description']);
 	$priority = pdo_escape_string($_POST['priority']);
-	$user = pdo_escape_string($_SESSION['tit']['username']);
+	$user = pdo_escape_string($_SESSION['t1t']['username']);
 	$now = date("Y-m-d H:i:s");
 
 	// gather all emails
@@ -230,7 +255,7 @@ if (isset($_GET["deleteissue"])) {
 	$title = get_col($id, "issues", "title");
 
 	// only the issue creator or admin can delete issue
-	if ($_SESSION['tit']['admin'] || $_SESSION['tit']['username'] == get_col($id, "issues", "user")) {
+	if ($_SESSION['t1t']['admin'] || $_SESSION['t1t']['username'] == get_col($id, "issues", "user")) {
 		@$db->exec("DELETE FROM issues WHERE id='$id'");
 		@$db->exec("DELETE FROM comments WHERE issue_id='$id'");
 
@@ -238,7 +263,7 @@ if (isset($_GET["deleteissue"])) {
 			notify(
 				$id,
 				"[$TITLE] Issue Deleted",
-				"Issue deleted by {$_SESSION['tit']['username']}\r\nTitle: $title"
+				"Issue deleted by {$_SESSION['t1t']['username']}\r\nTitle: $title"
 			);
 	}
 	header("Location: {$_SERVER['PHP_SELF']}");
@@ -254,7 +279,7 @@ if (isset($_GET["changepriority"])) {
 		notify(
 			$id,
 			"[$TITLE] Issue Priority Changed",
-			"Issue Priority changed by {$_SESSION['tit']['username']}\r\nTitle: " . get_col($id, "issues", "title") . "\r\nURL: http://{$_SERVER['HTTP_HOST']}{$_SERVER['PHP_SELF']}?id=$id"
+			"Issue Priority changed by {$_SESSION['t1t']['username']}\r\nTitle: " . get_col($id, "issues", "title") . "\r\nURL: http://{$_SERVER['HTTP_HOST']}{$_SERVER['PHP_SELF']}?id=$id"
 		);
 
 	header("Location: {$_SERVER['PHP_SELF']}?id=$id");
@@ -296,7 +321,7 @@ if (isset($_POST["createcomment"])) {
 
 	$issue_id = pdo_escape_string($_POST['issue_id']);
 	$description = pdo_escape_string($_POST['description']);
-	$user = $_SESSION['tit']['username'];
+	$user = $_SESSION['t1t']['username'];
 	$now = date("Y-m-d H:i:s");
 
 	if (trim($description) != '') {
@@ -320,11 +345,45 @@ if (isset($_GET["deletecomment"])) {
 	$cid = pdo_escape_string($_GET['cid']);
 
 	// only comment poster or admin can delete comment
-	if ($_SESSION['tit']['admin'] || $_SESSION['tit']['username'] == get_col($cid, "comments", "user"))
+	if ($_SESSION['t1t']['admin'] || $_SESSION['t1t']['username'] == get_col($cid, "comments", "user"))
 		$db->exec("DELETE FROM comments WHERE id='$cid'");
 
 	header("Location: {$_SERVER['PHP_SELF']}?id=$id");
 }
+
+// Create / Edit User
+if (isset($_POST["edituser"])) {
+	// check if user is admin
+	if ($_SESSION['t1t']['admin']) {
+		$mode = "admin";
+	}
+	
+	if (isset($_POST["username"]) && isset($_POST["email"]) && isset($_POST["status"])) {
+		$username = pdo_escape_string($_POST['username']);
+		$email = pdo_escape_string($_POST['email']);
+		$status = pdo_escape_string($_POST['status']);
+		$now = date("Y-m-d H:i:s");
+
+		// die(json_encode($_POST));
+
+		// check if user exists (same username / email)
+		$users = $db->query("SELECT * FROM users WHERE username='$username' OR email='$email'")->fetchAll();
+		if (count($users) == 0) {
+			$query = "INSERT INTO users (username, email, admin, entrytime) values('$username','$email','$status','$now')"; // create
+			$db->exec($query);
+			$message = "User created";
+		} else {
+			$message = "User already exists";
+		}
+
+		// die($message);
+
+		header("Location: ?admin-area");
+
+	}
+}
+
+
 
 //
 //      FUNCTIONS
@@ -341,33 +400,165 @@ function pdo_escape_string($str)
 // check credentials, returns -1 if not okay
 function check_credentials($u = false, $p = false)
 {
-	global $USERS;
+	// global $USERS;
+	global $db;
+	global $TITLE;
 
+	// using password_verify, get the user from the database
+	$u = htmlspecialchars(strtolower($u));
+	$p = htmlspecialchars($p);
 
-	// if($u == false && $p == false) {
-	// 	if(isset($_SESSION['tit']['username'])) {
-	// 		$u = $_SESSION['tit']['username'];
-	// 	} else {
-	// 		$u = '';
-	// 	}
+	if ($u == '' || $p == '' || !isset($u) || !isset($p) || !$u || !$p) return false;
 
-	// 	if(isset($_SESSION['tit']['password'])) {
-	// 		$p = $_SESSION['tit']['password'];
-	// 	} else {
-	// 		$p = '';
-	// 	}
-	// }
+	$users = $db->query("SELECT * FROM users WHERE username='$u'")->fetchAll();
+	if (count($users) == 0) return false;
 
-	// echo $u . ' | ' . $p;
+	$user = $users[0];
+	// if admin is 3, then this account is disabled
+	if ($user['admin'] == 3) {
+		$disabled = "<html>
+		<head>
+			<title>Tiny Issue Tracker</title>
+			<meta name='viewport' content='width=device-width, initial-scale=1'>
+			<style>
+			" . insertCss() . "
+			.container {
+				display: flex;
+				justify-content: center;
+			}
+				hr {
+				margin-top: 10vh;
+				margin-bottom: 10vh;
+			}
+			label{display:block;}
+			body {text-align:center;}
+			form input {width: 100%; font-family:sans-serif;font-size:11px;}
+			form {
+				border: 1px solid var(--border-color);
+				border-radius: 15px;
+				padding: 10px;
+				width: 250px;
+			}
+			.alert {
+				margin: auto;
+				background-color: #f85149;
+				color: white;
+				padding: 8px;
+				border-radius: 15px;
+				width: 300px;
+				text-align: center;
+				display: flex;
+				justify-content: center;
+				align-items: center;
+			}
 
+			@media only screen and (max-width: 600px) {
+				form {
+					width: 100%;
+				}
+			}
+			</style>
+		</head>
+								 <body>
+									<h2>$TITLE - Issue Tracker</h2>
+									<br>
+									<br>
 
-	$n = 0;
-	foreach ($USERS as $user) {
-		if (strcasecmp($user['username'], $u) === 0 && $user['password'] == $p) return $n;
-		$n++;
+									<div class='alert'>
+									<h2>This account is disabled</h2>
+									</div>
+									<p>This account was disabled by the administrator.<br> If you think this is a mistake, please contact the administrator.</p>
+									<hr>
+									<h3>Login as another user</h3>
+									<div class='container'>
+									<form method='POST' action='" . $_SERVER["REQUEST_URI"] . "'>
+									<label>Username</label><input type='text' name='u' />
+								 <label>Password</label><input type='password' name='p' />
+								 <label></label><input type='submit' name='login' value='Login' />
+								 </form>
+
+								 </div></body></html>";
+		die($disabled);
 	}
-	// die(json_encode($USERS));
-	return -1;
+
+	if(!isset($user['password']) || $user['password'] == '' || $user['password'] == null) {
+		// check if user has no password, if so, set it to the new password
+		$userPassword = password_hash($p, PASSWORD_DEFAULT);
+		$db->exec("UPDATE users SET password='" . $userPassword . "' WHERE username='$u'");
+		$user['password'] = $userPassword;
+		unset($userPassword);
+	}
+
+	if (password_verify($p, $user['password'])) {
+		$_SESSION['t1t']['username'] = $u;
+		$_SESSION['t1t']['password'] = $p;
+		$_SESSION['t1t']['email'] = $user['email'];
+		$_SESSION['t1t']['admin'] = ($user['admin'] == 1)? true : false;
+		return true;
+	}
+
+	
+
+
+	return false;
+}
+
+function check_first_time() {
+	global $db;
+	global $TITLE;
+
+	$db->exec("CREATE TABLE if not exists users (id INTEGER PRIMARY KEY, username TEXT, email TEXT, password TEXT, admin INTEGER, entrytime DATETIME)");
+
+	$message = "Set the first admin password";
+	if (isset($_POST["setAdminPassword"])) {
+		if (!isset($_POST["email"]) || !isset($_POST["password"])) {
+			$message = "Email and password are required";
+		} else {
+			// create first admin
+			$email = $_POST["email"];
+			$email = filter_var($email, FILTER_VALIDATE_EMAIL);
+			$password = $_POST["password"];
+			$password = password_hash($password, PASSWORD_DEFAULT);
+
+				// check if admin exists
+				$admin = $db->query("SELECT * FROM users WHERE username='admin'")->fetchAll();
+				if (count($admin) == 0) {
+					$db->exec("INSERT INTO users (username, email, password, admin, entrytime) values('admin', '" . $email . "', '$password', 1, '" . date("Y-m-d H:i:s") . "')");
+				}
+
+				header("Location: ?");
+		}
+	}
+	
+	$admin = $db->query("SELECT * FROM users WHERE username='admin'")->fetchAll();
+	if(count($admin) == 0) {
+		$firstAdminPassword = "<html>
+		<head>
+			<title>Tiny Issue Tracker</title>
+			<meta name='viewport' content='width=device-width, initial-scale=1'>
+			<style>
+			" . insertCss() . "
+			.container {
+				display: flex;
+				justify-content: center;
+				height: 100vh;
+			
+			} input{font-family:sans-serif;font-size:11px;} label{display:block;}
+			h2 {text-align:center;}
+			p {text-align:center;}
+			</style>
+		</head>
+								 <body>
+									<h2>$TITLE - Issue Tracker</h2><p>$message</p>
+									<div class='container'>
+									<form method='POST' action='" . $_SERVER["REQUEST_URI"] . "'>
+									<label>Username</label><input type='text' value='admin' readonly />
+									<label>Email</label><input type='email' name='email' />
+								 <label>Password</label><input type='password' name='password' />
+								 <label></label><input type='submit' name='setAdminPassword' value='Set Password' />
+								 </form></div></body></html>";
+		die($firstAdminPassword);
+	}
 }
 
 // get column from some table with $id
@@ -399,20 +590,20 @@ function notify($id, $subject, $body)
 // start/stop watching an issue
 function watchFilterCallback($email)
 {
-	return $email != $_SESSION['tit']['email'];
+	return $email != $_SESSION['t1t']['email'];
 }
 
 function setWatch($id, $addToWatch)
 {
 	global $db;
-	if ($_SESSION['tit']['email'] == '') return;
+	if ($_SESSION['t1t']['email'] == '') return;
 
 	$result = $db->query("SELECT notify_emails FROM issues WHERE id='$id'")->fetchAll();
 	$notify_emails = $result[0]['notify_emails'];
 
 	$emails = $notify_emails ? explode(",", $notify_emails) : array();
 
-	if ($addToWatch) $emails[] = $_SESSION['tit']['email'];
+	if ($addToWatch) $emails[] = $_SESSION['t1t']['email'];
 	else $emails = array_filter($emails, "watchFilterCallback");
 	$emails = array_unique($emails);
 
@@ -679,6 +870,10 @@ function insertJquery()
 			color: #f85149 !important;
 		}
 
+		.warning {
+			color: #fedd48;
+		}
+
 		.unimportant {
 			opacity: 0.5;
 		}
@@ -914,12 +1109,21 @@ function insertJquery()
 			foreach ($STATUSES as $code => $name) {
 				if (isset($_GET['status']) && $_GET['status'] == $code || (isset($issue) && $issue['status'] == $code)) {
 					$style = "style='font-weight: bold;'";
-				} else if (!isset($_GET['status']) && !isset($issue) && $code == 0) {
+				} else if (!isset($_GET['status']) && !isset($issue) && $code == 0 && !isset($_GET['admin-area'])) {
 					$style = "style='font-weight: bold;'";
 				} else {
 					$style = "";
 				}
 				echo "<a href='{$_SERVER['PHP_SELF']}?status={$code}' alt='{$name} Issues' $style>{$name} Issues</a> | ";
+			}
+
+			// if user is admin
+			if ($_SESSION['t1t']['admin'] === true) {
+				$style = "";
+				if (isset($_GET['admin-area'])) {
+					$style = "font-weight: bold;";
+				}
+				echo "<a href='{$_SERVER['PHP_SELF']}?admin-area' alt='Admin Area' style='color: #f85149;$style'>Admin Area</a> | ";
 			}
 			?>
 			<a href="<?php echo $_SERVER['PHP_SELF']; ?>?logout" alt="Logout">
@@ -931,7 +1135,7 @@ function insertJquery()
 				Logout</a>
 		</div>
 
-		<h3 class="hiName">Hi, <?php echo $_SESSION['tit']['username']; ?>!</h3>
+		<h3 class="hiName">Hi, <?php echo $_SESSION['t1t']['username']; ?>!</h3>
 		<h1 class="projectName"><a href="?"><?php echo $TITLE; ?></a></h1>
 
 		<button onclick="document.getElementById('create').className='';document.getElementById('create').showModal();document.getElementById('title').focus();">
@@ -940,31 +1144,52 @@ function insertJquery()
 				<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
 			</svg>
 			<?php
-			//  echo ($issue['id']==''?"Create":"Edit"); 
+			//  echo ($issue['id']==''?"Create":"Edit");
 			if (!isset($issue['id']) || $issue['id'] == '') {
-				echo 'New';
+				echo 'New';				
 			} else {
 				echo 'Edit';
 			} ?>
 		</button>
 		<dialog id="create" class='<?php echo isset($_GET['editissue']) ? '' : 'hide'; ?>' style="max-width: 90%;">
 			<form method="POST" action='<?php echo getUrl(); ?>'>
-				<input type="hidden" name="id" value="<?php echo (isset($issue) ? $issue['id'] : ''); ?>" />
+				<input type="hidden" name="id" value="<?php 
+				// echo (isset($issue) ? $issue['id'] : '');
+				if (isset($issue['id'])) {
+					echo $issue['id'];
+				} else {
+					echo '';
+				}
+				
+				?>" />
+				<?php if($mode == "admin") { ?>
+					<label>Username</label><input type="text" style="max-width: 85vw;" size="50" name="username" id="user" value="<?php echo htmlentities((isset($issue['user']) ? $issue['user'] : '')); ?>" />
+					<label>Email</label><input type="text" style="max-width: 85vw;" size="50" name="email" id="email" value="<?php echo htmlentities((isset($issue['email']) ? $issue['email'] : '')); ?>" />
+
+
+					Status
+				<select name="status" style="width: 100%;">
+					<option value="0">User</option>
+					<option value="1">Admin</option>
+					<option value="3">Banned</option>
+				</select>
+				<?php } else { ?>
 				<label>Title</label><input type="text" style="max-width: 85vw;" size="50" name="title" id="title" value="<?php echo htmlentities((isset($issue['title']) ? $issue['title'] : '')); ?>" />
 				<label>Description</label><textarea style="max-width: 90vw;" name="description" rows="5" cols="50"><?php echo htmlentities((isset($issue['description']) ? $issue['description'] : '')); ?></textarea>
 
 				Priority
-				<select name="priority">
+				<select name="priority" style="width: 100%;">
 					<option value="1">High</option>
 					<option selected value="2">Medium</option>
 					<option value="3">Low</option>
 				</select>
+				<?php } ?>
 				<br>
 
 				<?php
-				if (isset($issue['id'])) {
+				if (isset($issue['id']) || $mode == "admin") {
 					// check if user is admin
-					if ($_SESSION['tit']['admin'] === true || $_SESSION['tit']['username'] === $issue['user']) {
+					if ($_SESSION['t1t']['admin'] === true || $_SESSION['t1t']['username'] === $issue['user'] || $mode == "admin") {
 				?>
 
 						<button onclick="document.getElementById('confirmDeleteIssue').showModal();" style="background-color: #f85149;">Delete</button>
@@ -972,10 +1197,14 @@ function insertJquery()
 					}
 				}
 				?>
-				<label></label><input style="float: right;" type="submit" name="createissue" value="<?php echo (empty($issue['id']) ? "Create" : "Edit"); ?>" />
+				<label></label><input style="float: right;" type="submit" name="<?php if ($mode == "admin") {
+					echo "edituser";
+				} else {
+					echo "createissue";
+				} ?>" value="<?php echo (empty($issue['id']) ? "Create" : "Edit"); ?>" />
 
 
-				<button onclick="document.getElementById('create').close();document.getElementById('create').className='hide';" style="float: right;">Cancel</button>
+				<button onclick="document.getElementById('create').close();" style="float: right;">Cancel</button>
 
 			</form>
 		</dialog>
@@ -998,7 +1227,7 @@ function insertJquery()
 
 						<a href="?id=<?php echo $issue['id']; ?>">
 
-							<div class="issueItem" data-ctx="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo ($_SESSION['tit']['admin'] === true || $_SESSION['tit']['username'] === $issue['user']); ?>">
+							<div class="issueItem" data-ctx="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo ($_SESSION['t1t']['admin'] === true || $_SESSION['t1t']['username'] === $issue['user']); ?>">
 								<span class="issueStatus <?php
 															if ($issue['priority'] == 1) {
 																echo 'important';
@@ -1045,7 +1274,7 @@ function insertJquery()
 										</span>
 										<span class="watchStatus">
 											<?php
-											if ($_SESSION['tit']['email'] && strpos($issue['notify_emails'], $_SESSION['tit']['email']) !== FALSE) {
+											if ($_SESSION['t1t']['email'] && strpos($issue['notify_emails'], $_SESSION['t1t']['email']) !== FALSE) {
 											?>
 												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye">
 													<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -1134,6 +1363,7 @@ function insertJquery()
 						<p data-markdown="true"><?php echo nl2br(preg_replace("/([a-z]+:\/\/\S+)/", "<a href='$1'>$1</a>", htmlentities($issue['description'], ENT_COMPAT, "UTF-8"))); ?></p>
 						<div class="issueMeta right">
 							<img src="https://www.gravatar.com/avatar/<?php echo $comment['gravatar']; ?>?s=20&d=retro" alt="Gravatar" class="gravatar" onerror="this.style.display = 'none';this.nextElementSibling.style.display = 'inline-block';">
+							
 							<svg class="userCirlce" style="display: none;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-user">
 								<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
 								<circle cx="12" cy="7" r="4"></circle>
@@ -1163,7 +1393,7 @@ function insertJquery()
 							<label></label>
 							<input type="hidden" name="id" value="<?php echo $issue['id']; ?>" />
 							<?php
-							if ($_SESSION['tit']['email'] && strpos($issue['notify_emails'], $_SESSION['tit']['email']) === FALSE)
+							if ($_SESSION['t1t']['email'] && strpos($issue['notify_emails'], $_SESSION['t1t']['email']) === FALSE)
 								echo "<input type='submit' name='watch' value='Watch' />\n";
 							else
 								echo "<input type='submit' name='unwatch' value='Unwatch' />\n";
@@ -1209,7 +1439,9 @@ function insertJquery()
 										<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
 										<circle cx="12" cy="7" r="4"></circle>
 									</svg>
-
+									<script>
+								console.log('<?php echo $comment['gravatar'] . $USERS[array_search($comment['user'], array_column($USERS, 'username'))]['email'] ?>');
+							</script>
 									<em><?php echo $comment['user']; ?></em>
 									posted
 								</span>
@@ -1221,7 +1453,7 @@ function insertJquery()
 											<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
 										</svg>
 									</a>
-									<?php if ($_SESSION['tit']['admin'] || $_SESSION['tit']['username'] == $comment['user']) : ?>
+									<?php if ($_SESSION['t1t']['admin'] || $_SESSION['t1t']['username'] == $comment['user']) : ?>
 
 										<a class="important no-text-decoration" onclick="deleteModal(this)" data-deleteUrl='<?php echo $_SERVER['PHP_SELF']; ?>?deletecomment&id=<?php echo $issue['id']; ?>&cid=<?php echo $comment['id']; ?>' title="Delete comment">
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash">
@@ -1280,6 +1512,125 @@ function insertJquery()
 				</div>
 			</div>
 		<?php endif; ?>
+
+		<?php if ($mode == "admin") : ?>
+			<div id="list">
+				<?php
+				if (!isset($_GET['status'])) {
+					$_GET['status'] = 0;
+				}
+				?>
+				<h2>
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-award"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>	
+				Admin Area</h2>
+
+				<?php
+				if(isset($message)) {
+					echo "<div class='message'>$message</div>";
+				}
+				?>
+
+				<div class="issueList">
+					<?php
+					foreach ($USERS as $user) {
+					?>
+
+
+							<div class="issueItem" data-ctx="true" data-userid="<?php echo $user['id']; ?>" data-allowdelete="<?php echo ($user['username'] !== $_SESSION['t1t']['username'] && $user['username'] !== 'admin')? 'true' : 'false'; ?>">
+								<span class="issueStatus <?php
+															if ($user['admin'] == 3) {
+																echo 'warning';
+															} else if ($user['admin'] == 1) {
+																echo 'closed';
+															} else {
+																echo 'active';
+															} ?>">
+									<?php
+											// check if user has admin rights
+											if ($user['admin'] == 1) { ?>
+												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-award"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>
+											<?php } else if ($user['admin'] == 3) { ?>
+												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-pause"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+											<?php } else { ?>
+												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-user"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+											<?php } ?>
+								</span>
+								<div class="itemBody">
+									<div class="issueTitle">
+										<span <?php
+												if ($issue['priority'] == 1) {
+													echo 'class="important"';
+												} else if ($issue['priority'] == 3) {
+													echo 'class="unimportant"';
+												}
+
+												?>>
+											<span style="user-select: all;"><?php echo $user['username']; ?></span> - <span style="opacity: 0.7; user-select: all;"><?php echo $user['email']; ?></span>
+										</span>
+										<span class="watchStatus">
+											
+										</span>
+									</div>
+									<div class="itemDetails">
+										<div class="left">
+											Created <span title="<?php echo $user['entrytime']; ?>"><?php echo timeToString($user['entrytime']); ?></span> ago</span>
+										</div>
+										<?php if ($issue['comment_count'] > 0) { ?>
+											<div class="right">
+												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-message-circle">
+													<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+												</svg>
+												<span><?php echo $issue['comment_count']; ?></span>
+											</div>
+										<?php } ?>
+									</div>
+								</div>
+							</div>
+
+
+						<div id="ctxmenuTemplate" class="ctxmenu" style="display: none;">
+
+							<a onclick="document.getElementById('create').className='';document.getElementById('create').showModal();document.getElementById('title').focus();" data-ctxAction="new">
+								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-plus">
+									<line x1="12" y1="5" x2="12" y2="19"></line>
+									<line x1="5" y1="12" x2="19" y2="12"></line>
+								</svg>
+								New
+							</a>
+							<a href="#" data-ctxAction="edit">
+								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit">
+									<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+									<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+								</svg>
+								Edit
+							</a>
+							<a class="important" href="#" data-ctxAction="delete" onclick="document.getElementById('confirmDelete').showModal();">
+								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash-2">
+									<polyline points="3 6 5 6 21 6"></polyline>
+									<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+									<line x1="10" y1="11" x2="10" y2="17"></line>
+									<line x1="14" y1="11" x2="14" y2="17"></line>
+								</svg>
+								Delete
+							</a>
+						</div>
+
+						<dialog id="confirmDelete" style="width: 300px; height: 100px;">
+							<form method="POST">
+								<label>Are you sure you want to delete this user?</label>
+								<br>
+								<div>
+									<button onclick="document.getElementById('confirmDelete').close();" class="left">Cancel</button>
+									<a href="#" class="right important btn" id="confirmDeleteButton">Delete</a>
+								</div>
+							</form>
+						</dialog>
+					<?php } ?>
+				</div>
+
+			</div>
+		<?php endif; ?>
+
 		<div id="footer">
 			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-zap">
 				<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
@@ -1366,7 +1717,7 @@ function insertJquery()
 			for (let i = el.children.length; i--;) retarget(el.children[i]);
 		}
 
-		function showCtxMenu(e = false, issueId = false, allowDelete = false) {
+		function showCtxMenu(e = false, issueId = false, allowDelete = false, isUser = false) {
 			// prevent default context menu
 			e.preventDefault();
 
@@ -1374,6 +1725,7 @@ function insertJquery()
 			var ctxmenu = document.getElementById('ctxmenuTemplate');
 
 			var optionCount = 1;
+			console.log(issueId, allowDelete);
 
 			if (!ctxmenu || !ctxmenu.querySelectorAll('[data-ctxAction]').length) {
 				return;
@@ -1382,9 +1734,9 @@ function insertJquery()
 			var ctxActions = ctxmenu.querySelectorAll('[data-ctxAction]');
 
 
+
 			if (e && issueId) {
 				// get all ctx actions in the context menu
-
 				// loop through all ctx actions
 				ctxActions.forEach(ctxAction => {
 					// get the action
@@ -1395,7 +1747,7 @@ function insertJquery()
 						ctxAction.style.display = 'block';
 					} else if (action == 'delete') {
 						// if allow delete is false, hide the delete button
-						if (allowDelete == false) {
+						if (allowDelete == 'false' || !allowDelete) {
 							ctxAction.style.display = 'none';
 						} else {
 							ctxAction.style.display = 'block';
@@ -1488,11 +1840,13 @@ function insertJquery()
 
 			oncontextmenu = (e) => {
 				// check if a parent element has the data-ctx attribute in the hierarchy
-				if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx) {
-					showCtxMenu(e, e.target.closest('.issueItem').dataset.issueid, e.target.closest('.issueItem').dataset.allowdelete);
-				} else {
-					showCtxMenu(e);
-				}
+				if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx && e.target.closest('.issueItem').dataset.issueid) {
+						showCtxMenu(e, e.target.closest('.issueItem').dataset.issueid, e.target.closest('.issueItem').dataset.allowdelete);
+					} else if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx && e.target.closest('.issueItem').dataset.userid) {
+						showCtxMenu(e, e.target.closest('.issueItem').dataset.userid, e.target.closest('.issueItem').dataset.allowdelete, true);
+					} else {
+						showCtxMenu(e);
+					}
 			}
 		});
 
@@ -1508,6 +1862,8 @@ function insertJquery()
 					// check if a parent element has the data-ctx attribute in the hierarchy
 					if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx) {
 						showCtxMenu(e, e.target.closest('.issueItem').dataset.issueid, e.target.closest('.issueItem').dataset.allowdelete);
+					} else if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.userid) {
+						showCtxMenu(e, e.target.closest('.issueItem').dataset.userid, e.target.closest('.issueItem').dataset.allowdelete);
 					} else {
 						showCtxMenu(e);
 					}
@@ -1517,4 +1873,5 @@ function insertJquery()
 	</script>
 
 </body>
+
 </html>

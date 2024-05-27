@@ -7,3 +7,5 @@
 
 # Ignore log files
 *.log
+
+inc.php

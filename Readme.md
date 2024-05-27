@@ -19,5 +19,5 @@ Tiny Issue Tracker (TIT) is SQLite based, single-file issue tracker.
 
 ## License and Credits
 
-MIT License
+[GNU GPL License](./LICENSE)
 This is a fork of [tit](https://github.com/jwalanta/tit) by [jwalanta](https://github.com/jwalanta/) (<-last update was 2015 😐)

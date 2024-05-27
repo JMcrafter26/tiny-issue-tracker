@@ -1,8 +1,9 @@
 <?php
 /*
- *      Tiny Issue Tracker (TIT) v2.0
+ *      Tiny Issue Tracker v3.0
  *      SQLite based, single file Issue Tracker
  *
+ * 		Copyright 2024 JMcrafter26 <https://github.com/JMcrafter26>
  *      Copyright 2010-2013 Jwalanta Shrestha <jwalanta at gmail dot com>
  *      GNU GPL
  */

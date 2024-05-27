@@ -7,7 +7,7 @@ Tiny Issue Tracker (TIT) is SQLite based, single-file issue tracker.
 - :rocket: Super Lightweight
 - :busts_in_silhouette: Multi-user
 - :email: Email Notifications
-- :wrench: Auto DB creation on first run
+- :package: No dependencies
 - :fire: Issue Priority (High, Medium, Low)
 - :speech_balloon: Comment on issues
 - :running: Throw and run!
@@ -20,4 +20,4 @@ Tiny Issue Tracker (TIT) is SQLite based, single-file issue tracker.
 ## License and Credits
 
 MIT License
-This is a fork of [tit](https://github.com/jwalanta/tit) by [jwalanta](https://github.com/jwalanta/) (<-last update was 2015)
+This is a fork of [tit](https://github.com/jwalanta/tit) by [jwalanta](https://github.com/jwalanta/) (<-last update was 2015 😐)

@@ -480,8 +480,7 @@ function insertJquery()
 
 	<!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css"> -->
 	<style>
-		<?php echo insertCss(); ?>
-		h1 a {
+		<?php echo insertCss(); ?>h1 a {
 			color: var(--text-main);
 			text-decoration: none;
 		}
@@ -772,7 +771,7 @@ function insertJquery()
 			width: 1.3em;
 			height: 1.3em;
 			vertical-align: middle;
-		}		
+		}
 	</style>
 
 	<script>
@@ -913,7 +912,13 @@ function insertJquery()
 		<div id="menu">
 			<?php
 			foreach ($STATUSES as $code => $name) {
-				$style = (isset($_GET['status']) && $_GET['status'] == $code) || (isset($issue) && $issue['status'] == $code) ? "style='font-weight:bold;'" : "";
+				if (isset($_GET['status']) && $_GET['status'] == $code || (isset($issue) && $issue['status'] == $code)) {
+					$style = "style='font-weight: bold;'";
+				} else if (!isset($_GET['status']) && !isset($issue) && $code == 0) {
+					$style = "style='font-weight: bold;'";
+				} else {
+					$style = "";
+				}
 				echo "<a href='{$_SERVER['PHP_SELF']}?status={$code}' alt='{$name} Issues' $style>{$name} Issues</a> | ";
 			}
 			?>
@@ -990,7 +995,7 @@ function insertJquery()
 						global $comments;
 
 					?>
-			
+
 						<a href="?id=<?php echo $issue['id']; ?>">
 
 							<div class="issueItem" data-ctx="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo ($_SESSION['tit']['admin'] === true || $_SESSION['tit']['username'] === $issue['user']); ?>">
@@ -1074,14 +1079,19 @@ function insertJquery()
 
 						<div id="ctxmenuTemplate" class="ctxmenu" style="display: none;">
 
-							<a onclick="document.getElementById('create').className='';document.getElementById('create').showModal();document.getElementById('title').focus();">
+							<a onclick="document.getElementById('create').className='';document.getElementById('create').showModal();document.getElementById('title').focus();" data-ctxAction="new">
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-plus">
 									<line x1="12" y1="5" x2="12" y2="19"></line>
 									<line x1="5" y1="12" x2="19" y2="12"></line>
 								</svg>
 								New
 							</a>
-							<br>
+							<a href="#" data-ctxAction="newtab">
+								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up-right">
+									<line x1="7" y1="17" x2="17" y2="7"></line>
+									<polyline points="7 7 17 7 17 17"></polyline>
+								</svg> New Tab
+							</a>
 							<a href="#" data-ctxAction="edit">
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit">
 									<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -1089,7 +1099,6 @@ function insertJquery()
 								</svg>
 								Edit
 							</a>
-							<br>
 							<a class="important" href="#" data-ctxAction="delete" onclick="document.getElementById('confirmDelete').showModal();">
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash-2">
 									<polyline points="3 6 5 6 21 6"></polyline>
@@ -1111,9 +1120,6 @@ function insertJquery()
 								</div>
 							</form>
 						</dialog>
-
-
-
 					<?php } ?>
 				</div>
 
@@ -1165,7 +1171,7 @@ function insertJquery()
 						</form>
 					</div>
 				</div>
-			
+
 				<div class='clear'></div>
 				<div id="comments">
 					<?php
@@ -1259,6 +1265,14 @@ function insertJquery()
 						<form method="POST">
 							<input type="hidden" name="issue_id" value="<?php echo $issue['id']; ?>" />
 							<textarea name="description" rows="5" cols="50" style="width: 100%;" placeholder="Comment here..."></textarea>
+							<a class="right no-text-decoration" target="_blank" title="Markdown Cheatsheet" href="https://gist.github.com/JMcrafter26/b6428ddeb6cd40e3fc99ff6df74ff707#file-edited-markdown-cheat-sheet-md">
+								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-help-circle">
+									<circle cx="12" cy="12" r="10"></circle>
+									<line x1="12" y1="16" x2="12" y2="12"></line>
+									<line x1="12" y1="8" x2="12" y2="8"></line>
+								</svg>
+								<span style="color: var(--text-main);">Markdown Supported</span>
+							</a>
 							<label></label>
 							<input type="submit" name="createcomment" value="Comment" />
 						</form>
@@ -1276,7 +1290,49 @@ function insertJquery()
 
 
 	<script>
-		!function(e,n){"object"==typeof exports&&"undefined"!=typeof module?module.exports=n():"function"==typeof define&&define.amd?define(n):(e=e||self).snarkdown=n()}(this,function(){var e={"":["<em>","</em>"],_:["<strong>","</strong>"],"*":["<strong>","</strong>"],"~":["<s>","</s>"],"\n":["<br />"]," ":["<br />"],"-":["<hr />"]};function n(e){return e.replace(RegExp("^"+(e.match(/^(\t| )+/)||"")[0],"gm"),"")}function r(e){return(e+"").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}return function t(o,a){var c,s,l,g,u,p=/((?:^|\n+)(?:\n---+|\* \*(?: \*)+)\n)|(?:^``` *(\w*)\n([\s\S]*?)\n```$)|((?:(?:^|\n+)(?:\t|  {2,}).+)+\n*)|((?:(?:^|\n)([>*+-]|\d+\.)\s+.*)+)|(?:!\[([^\]]*?)\]\(([^)]+?)\))|(\[)|(\](?:\(([^)]+?)\))?)|(?:(?:^|\n+)([^\s].*)\n(-{3,}|={3,})(?:\n+|$))|(?:(?:^|\n+)(#{1,6})\s*(.+)(?:\n+|$))|(?:`([^`].*?)`)|(  \n\n*|\n{2,}|__|\*\*|[_*]|~~)/gm,f=[],i="",d=a||{},m=0;function h(n){var r=e[n[1]||""],t=f[f.length-1]==n;return r?r[1]?(t?f.pop():f.push(n),r[0|t]):r[0]:n}function $(){for(var e="";f.length;)e+=h(f[f.length-1]);return e}for(o=o.replace(/^\[(.+?)\]:\s*(.+)$/gm,function(e,n,r){return d[n.toLowerCase()]=r,""}).replace(/^\n+|\n+$/g,"");l=p.exec(o);)s=o.substring(m,l.index),m=p.lastIndex,c=l[0],s.match(/[^\\](\\\\)*\\$/)||((u=l[3]||l[4])?c='<pre class="code '+(l[4]?"poetry":l[2].toLowerCase())+'"><code'+(l[2]?' class="language-'+l[2].toLowerCase()+'"':"")+">"+n(r(u).replace(/^\n+|\n+$/g,""))+"</code></pre>":(u=l[6])?(u.match(/\./)&&(l[5]=l[5].replace(/^\d+/gm,"")),g=t(n(l[5].replace(/^\s*[>*+.-]/gm,""))),">"==u?u="blockquote":(u=u.match(/\./)?"ol":"ul",g=g.replace(/^(.*)(\n|$)/gm,"<li>$1</li>")),c="<"+u+">"+g+"</"+u+">"):l[8]?c='<img src="'+r(l[8])+'" alt="'+r(l[7])+'">':l[10]?(i=i.replace("<a>",'<a href="'+r(l[11]||d[s.toLowerCase()])+'">'),c=$()+"</a>"):l[9]?c="<a>":l[12]||l[14]?c="<"+(u="h"+(l[14]?l[14].length:l[13]>"="?1:2))+">"+t(l[12]||l[15],d)+"</"+u+">":l[16]?c="<code>"+r(l[16])+"</code>":(l[17]||l[1])&&(c=h(l[17]||"--"))),i+=s,i+=c;return(i+o.substring(m)+$()).replace(/^\n+|\n+$/g,"")}});
+		! function(e, n) {
+			"object" == typeof exports && "undefined" != typeof module ? module.exports = n() : "function" == typeof define && define.amd ? define(n) : (e = e || self).snarkdown = n()
+		}(this, function() {
+			var e = {
+				"": ["<em>", "</em>"],
+				_: ["<strong>", "</strong>"],
+				"*": ["<strong>", "</strong>"],
+				"~": ["<s>", "</s>"],
+				"\n": ["<br />"],
+				" ": ["<br />"],
+				"-": ["<hr />"]
+			};
+
+			function n(e) {
+				return e.replace(RegExp("^" + (e.match(/^(\t| )+/) || "")[0], "gm"), "")
+			}
+
+			function r(e) {
+				return (e + "").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+			}
+			return function t(o, a) {
+				var c, s, l, g, u, p = /((?:^|\n+)(?:\n---+|\* \*(?: \*)+)\n)|(?:^``` *(\w*)\n([\s\S]*?)\n```$)|((?:(?:^|\n+)(?:\t|  {2,}).+)+\n*)|((?:(?:^|\n)([>*+-]|\d+\.)\s+.*)+)|(?:!\[([^\]]*?)\]\(([^)]+?)\))|(\[)|(\](?:\(([^)]+?)\))?)|(?:(?:^|\n+)([^\s].*)\n(-{3,}|={3,})(?:\n+|$))|(?:(?:^|\n+)(#{1,6})\s*(.+)(?:\n+|$))|(?:`([^`].*?)`)|(  \n\n*|\n{2,}|__|\*\*|[_*]|~~)/gm,
+					f = [],
+					i = "",
+					d = a || {},
+					m = 0;
+
+				function h(n) {
+					var r = e[n[1] || ""],
+						t = f[f.length - 1] == n;
+					return r ? r[1] ? (t ? f.pop() : f.push(n), r[0 | t]) : r[0] : n
+				}
+
+				function $() {
+					for (var e = ""; f.length;) e += h(f[f.length - 1]);
+					return e
+				}
+				for (o = o.replace(/^\[(.+?)\]:\s*(.+)$/gm, function(e, n, r) {
+						return d[n.toLowerCase()] = r, ""
+					}).replace(/^\n+|\n+$/g, ""); l = p.exec(o);) s = o.substring(m, l.index), m = p.lastIndex, c = l[0], s.match(/[^\\](\\\\)*\\$/) || ((u = l[3] || l[4]) ? c = '<pre class="code ' + (l[4] ? "poetry" : l[2].toLowerCase()) + '"><code' + (l[2] ? ' class="language-' + l[2].toLowerCase() + '"' : "") + ">" + n(r(u).replace(/^\n+|\n+$/g, "")) + "</code></pre>" : (u = l[6]) ? (u.match(/\./) && (l[5] = l[5].replace(/^\d+/gm, "")), g = t(n(l[5].replace(/^\s*[>*+.-]/gm, ""))), ">" == u ? u = "blockquote" : (u = u.match(/\./) ? "ol" : "ul", g = g.replace(/^(.*)(\n|$)/gm, "<li>$1</li>")), c = "<" + u + ">" + g + "</" + u + ">") : l[8] ? c = '<img src="' + r(l[8]) + '" alt="' + r(l[7]) + '">' : l[10] ? (i = i.replace("<a>", '<a href="' + r(l[11] || d[s.toLowerCase()]) + '">'), c = $() + "</a>") : l[9] ? c = "<a>" : l[12] || l[14] ? c = "<" + (u = "h" + (l[14] ? l[14].length : l[13] > "=" ? 1 : 2)) + ">" + t(l[12] || l[15], d) + "</" + u + ">" : l[16] ? c = "<code>" + r(l[16]) + "</code>" : (l[17] || l[1]) && (c = h(l[17] || "--"))), i += s, i += c;
+				return (i + o.substring(m) + $()).replace(/^\n+|\n+$/g, "")
+			}
+		});
 	</script>
 	<script>
 		function deleteModal(e) {
@@ -1310,33 +1366,74 @@ function insertJquery()
 			for (let i = el.children.length; i--;) retarget(el.children[i]);
 		}
 
-		function showCtxMenu(e, issueId, allowDelete) {
+		function showCtxMenu(e = false, issueId = false, allowDelete = false) {
 			// prevent default context menu
 			e.preventDefault();
 
 			// get the context menu element
 			var ctxmenu = document.getElementById('ctxmenuTemplate');
 
-			// get all ctx actions in the context menu
+			var optionCount = 1;
+
+			if (!ctxmenu || !ctxmenu.querySelectorAll('[data-ctxAction]').length) {
+				return;
+			}
+
 			var ctxActions = ctxmenu.querySelectorAll('[data-ctxAction]');
-			// loop through all ctx actions
-			ctxActions.forEach(ctxAction => {
-				// get the action
-				var action = ctxAction.dataset.ctxaction;
-				if (action == 'edit') {
-					ctxAction.href = `?editissue&id=${issueId}`;
-				} else if (action == 'delete') {
-					// if allow delete is false, hide the delete button
-					if (allowDelete == false) {
-						ctxAction.style.display = 'none';
-					} else {
+
+
+			if (e && issueId) {
+				// get all ctx actions in the context menu
+
+				// loop through all ctx actions
+				ctxActions.forEach(ctxAction => {
+					// get the action
+					var action = ctxAction.dataset.ctxaction;
+					if (action == 'edit') {
+						optionCount++;
+						ctxAction.href = `?editissue&id=${issueId}`;
+						ctxAction.style.display = 'block';
+					} else if (action == 'delete') {
+						// if allow delete is false, hide the delete button
+						if (allowDelete == false) {
+							ctxAction.style.display = 'none';
+						} else {
+							ctxAction.style.display = 'block';
+							optionCount++;
+						}
+					} else if (action == 'newtab') {
+						optionCount++;
+						ctxAction.href = `?id=${issueId}`;
+						ctxAction.target = '_blank';
 						ctxAction.style.display = 'block';
 					}
-				}
+				});
+
+				const confirmDeleteButton = document.getElementById('confirmDeleteButton');
+				confirmDeleteButton.href = `?deleteissue&id=${issueId}`;
+			} else {
+				ctxActions.forEach(ctxAction => {
+					if (ctxAction.dataset.ctxaction != 'new') {
+						ctxAction.style.display = 'none';
+					}
+				});
+			}
+
+			// based on the option count, add margin-bottom to the context menu
+			// reset the margin
+			const ctxmenuItems = ctxmenu.querySelectorAll('a');
+			ctxmenuItems.forEach(ctxmenuItem => {
+				ctxmenuItem.style.marginBottom = '0';
 			});
 
-			const confirmDeleteButton = document.getElementById('confirmDeleteButton');
-			confirmDeleteButton.href = `?deleteissue&id=${issueId}`;
+			if (optionCount > 1) {
+				ctxmenuItems.forEach(ctxmenuItem => {
+					ctxmenuItem.style.marginBottom = '5px';
+				});
+				// last item should not have margin
+				ctxmenuItems[optionCount - 1].style.marginBottom = '2px';
+			}
+
 
 			// set the position of the context menu
 			ctxmenu.style.top = `${e.clientY}px`;
@@ -1358,12 +1455,11 @@ function insertJquery()
 
 		function highlightComment() {
 			// check if url contains hash
-			if(!window.location.hash) {
+			if (!window.location.hash) {
 				return;
 			}
 
 			const commentId = window.location.hash;
-			console.log(commentId);
 
 			const highlitedComments = document.querySelectorAll('.highlightedComment');
 			highlitedComments.forEach(highlitedComment => {
@@ -1371,17 +1467,19 @@ function insertJquery()
 			});
 
 			const comment = document.querySelector(commentId);
-			if(comment) {
+			if (comment) {
 				comment.classList.add('highlightedComment');
 				// scroll to the comment (smooth)
-				comment.scrollIntoView({ behavior: 'smooth' });
+				comment.scrollIntoView({
+					behavior: 'smooth'
+				});
 
 				// add eventlistener to remove the class after user clicks on the comment
 				document.addEventListener('click', function() {
 					comment.classList.remove('highlightedComment');
 				});
 			}
-		} 
+		}
 
 		// after page load
 		document.addEventListener("DOMContentLoaded", function() {
@@ -1389,33 +1487,34 @@ function insertJquery()
 			highlightComment();
 
 			oncontextmenu = (e) => {
-			// check if a parent element has the data-ctx attribute in the hierarchy
-			if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx) {
-				showCtxMenu(e, e.target.closest('.issueItem').dataset.issueid, e.target.closest('.issueItem').dataset.allowdelete);
+				// check if a parent element has the data-ctx attribute in the hierarchy
+				if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx) {
+					showCtxMenu(e, e.target.closest('.issueItem').dataset.issueid, e.target.closest('.issueItem').dataset.allowdelete);
+				} else {
+					showCtxMenu(e);
+				}
 			}
-		}
 		});
 
 		document.addEventListener("ajaxify:load", function(e) {
-			// trigger event that pageName input value has changed
-			console.log('ajaxify:load');
 
 			// wait 100ms before triggering pageInit
 			setTimeout(function() {
 				convertMarkdown();
-			highlightComment();
+				highlightComment();
 
 
 				oncontextmenu = (e) => {
-			// check if a parent element has the data-ctx attribute in the hierarchy
-			if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx) {
-				showCtxMenu(e, e.target.closest('.issueItem').dataset.issueid, e.target.closest('.issueItem').dataset.allowdelete);
-			}
-		}
+					// check if a parent element has the data-ctx attribute in the hierarchy
+					if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx) {
+						showCtxMenu(e, e.target.closest('.issueItem').dataset.issueid, e.target.closest('.issueItem').dataset.allowdelete);
+					} else {
+						showCtxMenu(e);
+					}
+				}
 			}, 100);
-		});		
+		});
 	</script>
 
 </body>
-
 </html>

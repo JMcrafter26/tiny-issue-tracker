@@ -1,0 +1,9 @@
+# Gitignore
+
+# Ignore *.db, *.sqlite3, *.sqlite files
+*.db
+*.sqlite3
+*.sqlite
+
+# Ignore log files
+*.log

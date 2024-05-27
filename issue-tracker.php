@@ -1,10 +1,10 @@
 <?php
 /*
- *      Tiny Issue Tracker v3.0
+ *      Tiny Issue Tracker v3.1
  *      SQLite based, single file Issue Tracker
  *
- * 		Copyright 2024 JMcrafter26 <https://github.com/JMcrafter26>
  *      Copyright 2010-2013 Jwalanta Shrestha <jwalanta at gmail dot com>
+ * 		Copyright 2024 JMcrafter26 <https://github.com/JMcrafter26>
  *      GNU GPL
  */
 
@@ -389,7 +389,11 @@ function notify($id, $subject, $body)
 		global $EMAIL;
 		$headers = "From: $EMAIL" . "\r\n" . 'X-Mailer: PHP/' . phpversion();
 
-		// mail($to, $subject, $body, $headers);       // standard php mail, hope it passes spam filter :)
+		try {
+			mail($to, $subject, $body, $headers);       // standard php mail, hope it passes spam filter :)
+		} catch(Error) {
+			
+		}
 	}
 }
 
@@ -418,37 +422,39 @@ function setWatch($id, $addToWatch)
 	$db->exec("UPDATE issues SET notify_emails='$notify_emails' WHERE id='$id'");
 }
 
-function timeToString($time) {
+function timeToString($time)
+{
 	$currentTime = time();
-						$diff = $currentTime - strtotime($time);
+	$diff = $currentTime - strtotime($time);
 
-						if ($diff < 60) {
-							$timeAgo = $diff . " second" . ($diff > 1 ? "s" : "");
-						} elseif ($diff < 3600) {
-							$diff = floor($diff / 60);
-							$timeAgo = $diff . " minute" . ($diff > 1 ? "s" : "");
-						} elseif ($diff < 86400) {
-							$diff = floor($diff / 3600);
-							$timeAgo = $diff . " hour" . ($diff > 1 ? "s" : "");
-						} elseif ($diff < 604800) {
-							$diff = floor($diff / 86400);
-							$timeAgo = $diff . " day" . ($diff > 1 ? "s" : "");
-						} elseif ($diff < 2592000) {
-							$diff = floor($diff / 604800);
-							$timeAgo = $diff . " week" . ($diff > 1 ? "s" : "");
-						} elseif ($diff < 31536000) {
-							$diff = floor($diff / 2592000);
-							$timeAgo = $diff . " month" . ($diff > 1 ? "s" : "");
-						} else {
-							$diff = floor($diff / 31536000);
-							$months = $diff % 12;
-							$years = floor($diff / 12);
-							$timeAgo = $years . " year" . ($years > 1 ? "s" : "") . ($months > 0 ? " " . $months . " month" . ($months > 1 ? "s" : "") : "");
-						}
-					return $timeAgo;
+	if ($diff < 60) {
+		$timeAgo = $diff . " second" . ($diff > 1 ? "s" : "");
+	} elseif ($diff < 3600) {
+		$diff = floor($diff / 60);
+		$timeAgo = $diff . " minute" . ($diff > 1 ? "s" : "");
+	} elseif ($diff < 86400) {
+		$diff = floor($diff / 3600);
+		$timeAgo = $diff . " hour" . ($diff > 1 ? "s" : "");
+	} elseif ($diff < 604800) {
+		$diff = floor($diff / 86400);
+		$timeAgo = $diff . " day" . ($diff > 1 ? "s" : "");
+	} elseif ($diff < 2592000) {
+		$diff = floor($diff / 604800);
+		$timeAgo = $diff . " week" . ($diff > 1 ? "s" : "");
+	} elseif ($diff < 31536000) {
+		$diff = floor($diff / 2592000);
+		$timeAgo = $diff . " month" . ($diff > 1 ? "s" : "");
+	} else {
+		$diff = floor($diff / 31536000);
+		$months = $diff % 12;
+		$years = floor($diff / 12);
+		$timeAgo = $years . " year" . ($years > 1 ? "s" : "") . ($months > 0 ? " " . $months . " month" . ($months > 1 ? "s" : "") : "");
+	}
+	return $timeAgo;
 }
 
-function getUrl() {
+function getUrl()
+{
 	return (empty($_SERVER['HTTPS']) ? 'http' : 'https') . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
 }
 
@@ -724,10 +730,11 @@ function insertJquery()
 		}
 
 		.gravatar {
-			border-radius: 50%; 
+			border-radius: 50%;
 			margin-right: 3px;
 			vertical-align: middle;
 		}
+
 		.userCirlce {
 			border-radius: 50%;
 			border: 1px solid #666;
@@ -739,7 +746,7 @@ function insertJquery()
 			vertical-align: middle;
 		}
 
-		.no-text-decoration{
+		.no-text-decoration {
 			text-decoration: none !important;
 			cursor: pointer;
 		}
@@ -1167,7 +1174,7 @@ function insertJquery()
 				<div class="issueContainer">
 					<div class="issue">
 						<h2><?php echo htmlentities($issue['title'], ENT_COMPAT, "UTF-8"); ?></h2>
-						<p class=""><?php echo nl2br(preg_replace("/([a-z]+:\/\/\S+)/", "<a href='$1'>$1</a>", htmlentities($issue['description'], ENT_COMPAT, "UTF-8"))); ?></p>
+						<p data-markdown="true"><?php echo nl2br(preg_replace("/([a-z]+:\/\/\S+)/", "<a href='$1'>$1</a>", htmlentities($issue['description'], ENT_COMPAT, "UTF-8"))); ?></p>
 					</div>
 					<hr />
 					<br>
@@ -1199,21 +1206,25 @@ function insertJquery()
 					</div>
 				</div>
 				<script>
-						console.log(<?php echo json_encode($issue); ?>);
-					</script>
+					console.log(<?php echo json_encode($issue); ?>);
+				</script>
 				<div class='clear'></div>
 				<div id="comments">
 					<?php
 					if (count($comments) > 0) {
-						?>
-						<h3>Comments <a class="no-text-decoration" style="font-size: 1rem" href='<?php 
-						// request url
-						echo  getUrl();
-						?>'>
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-refresh-cw"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-					</a>
+					?>
+						<h3>Comments <a class="no-text-decoration" style="font-size: 1rem" href='<?php
+																									// request url
+																									echo  getUrl();
+																									?>'>
+								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-refresh-cw">
+									<polyline points="23 4 23 10 17 10"></polyline>
+									<polyline points="1 20 1 14 7 14"></polyline>
+									<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+								</svg>
+							</a>
 						</h3>
-						<?php
+					<?php
 					}
 					foreach ($comments as $comment) {
 
@@ -1224,33 +1235,38 @@ function insertJquery()
 						$timeAgo = timeToString($comment['entrytime']);
 
 					?>
-			
-						<div class='comment' id='c<?php echo $comment['id']; ?>'>
-							<p><?php echo nl2br(preg_replace("/([a-z]+:\/\/\S+)/", "<a href='$1'>$1</a>", htmlentities($comment['description'], ENT_COMPAT, "UTF-8"))); ?></p>
-							<div class='comment-meta'>
-							<span>
-							<img src="https://www.gravatar.com/avatar/<?php echo $comment['gravatar']; ?>?s=20&d=retro" alt="Gravatar" class="gravatar"
-							onerror="this.style.display = 'none';this.nextElementSibling.style.display = 'inline-block';" >
-							<svg class="userCirlce" style="display: none;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-user"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
 
-							<em><?php echo $comment['user']; ?></em>
-							posted
-							</span>
+						<div class='comment' id='c<?php echo $comment['id']; ?>'>
+							<p data-markdown="true"><?php echo nl2br(preg_replace("/([a-z]+:\/\/\S+)/", "<a href='$1'>$1</a>", htmlentities($comment['description'], ENT_COMPAT, "UTF-8"))); ?></p>
+							<div class='comment-meta'>
+								<span>
+									<img src="https://www.gravatar.com/avatar/<?php echo $comment['gravatar']; ?>?s=20&d=retro" alt="Gravatar" class="gravatar" onerror="this.style.display = 'none';this.nextElementSibling.style.display = 'inline-block';">
+									<svg class="userCirlce" style="display: none;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-user">
+										<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+										<circle cx="12" cy="7" r="4"></circle>
+									</svg>
+
+									<em><?php echo $comment['user']; ?></em>
+									posted
+								</span>
 								<em><a class="no-text-decoration" style="color: #666" href='#' title='<?php echo $comment['entrytime']; ?>'><?php echo $timeAgo; ?></a> ago</em>
-									<span class='right'>
-										<a href='#c<?php echo $comment['id']; ?>' title="Get comment link" class="no-text-decoration">
-											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-link">
-												<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-												<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-											</svg>
-										</a>
-								<?php if ($_SESSION['tit']['admin'] || $_SESSION['tit']['username'] == $comment['user']) : ?>
+								<span class='right'>
+									<a href='#c<?php echo $comment['id']; ?>' title="Get comment link" class="no-text-decoration">
+										<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-link">
+											<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+											<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+										</svg>
+									</a>
+									<?php if ($_SESSION['tit']['admin'] || $_SESSION['tit']['username'] == $comment['user']) : ?>
 
 										<a class="important no-text-decoration" onclick="deleteModal(this)" data-deleteUrl='<?php echo $_SERVER['PHP_SELF']; ?>?deletecomment&id=<?php echo $issue['id']; ?>&cid=<?php echo $comment['id']; ?>' title="Delete comment">
-										<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-									</a>
-								<?php endif; ?>
-									</span>
+											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash">
+												<polyline points="3 6 5 6 21 6"></polyline>
+												<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+											</svg>
+										</a>
+									<?php endif; ?>
+								</span>
 							</div>
 						</div>
 					<?php
@@ -1268,6 +1284,52 @@ function insertJquery()
 						</form>
 					</dialog>
 
+
+					<script>
+						! function(e, n) {
+							"object" == typeof exports && "undefined" != typeof module ? module.exports = n() : "function" == typeof define && define.amd ? define(n) : (e = e || self).snarkdown = n()
+						}(this, function() {
+							var e = {
+								"": ["<em>", "</em>"],
+								_: ["<strong>", "</strong>"],
+								"*": ["<strong>", "</strong>"],
+								"~": ["<s>", "</s>"],
+								"\n": ["<br />"],
+								" ": ["<br />"],
+								"-": ["<hr />"]
+							};
+
+							function n(e) {
+								return e.replace(RegExp("^" + (e.match(/^(\t| )+/) || "")[0], "gm"), "")
+							}
+
+							function r(e) {
+								return (e + "").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+							}
+							return function t(o, a) {
+								var c, s, l, g, u, p = /((?:^|\n+)(?:\n---+|\* \*(?: \*)+)\n)|(?:^``` *(\w*)\n([\s\S]*?)\n```$)|((?:(?:^|\n+)(?:\t| {2,}).+)+\n*)|((?:(?:^|\n)([>*+-]|\d+\.)\s+.*)+)|(?:!\[([^\]]*?)\]\(([^)]+?)\))|(\[)|(\](?:\(([^)]+?)\))?)|(?:(?:^|\n+)([^\s].*)\n(-{3,}|={3,})(?:\n+|$))|(?:(?:^|\n+)(#{1,6})\s*(.+)(?:\n+|$))|(?:`([^`].*?)`)|( \n\n*|\n{2,}|__|\*\*|[_*]|~~)/gm,
+									f = [],
+									i = "",
+									d = a || {},
+									m = 0;
+
+								function h(n) {
+									var r = e[n[1] || ""],
+										t = f[f.length - 1] == n;
+									return r ? r[1] ? (t ? f.pop() : f.push(n), r[0 | t]) : r[0] : n
+								}
+
+								function $() {
+									for (var e = ""; f.length;) e += h(f[f.length - 1]);
+									return e
+								}
+								for (o = o.replace(/^\[(.+?)\]:\s*(.+)$/gm, function(e, n, r) {
+										return d[n.toLowerCase()] = r, ""
+									}).replace(/^\n+|\n+$/g, ""); l = p.exec(o);) s = o.substring(m, l.index), m = p.lastIndex, c = l[0], s.match(/[^\\](\\\\)*\\$/) || ((u = l[3] || l[4]) ? c = '<pre class="code ' + (l[4] ? "poetry" : l[2].toLowerCase()) + '"><code' + (l[2] ? ' class="language-' + l[2].toLowerCase() + '"' : "") + ">" + n(r(u).replace(/^\n+|\n+$/g, "")) + "</code></pre>" : (u = l[6]) ? (u.match(/\./) && (l[5] = l[5].replace(/^\d+/gm, "")), g = t(n(l[5].replace(/^\s*[>*+.-]/gm, ""))), ">" == u ? u = "blockquote" : (u = u.match(/\./) ? "ol" : "ul", g = g.replace(/^(.*)(\n|$)/gm, "<li>$1</li>")), c = "<" + u + ">" + g + "</" + u + ">") : l[8] ? c = '<img src="' + r(l[8]) + '" alt="' + r(l[7]) + '">' : l[10] ? (i = i.replace("<a>", '<a href="' + r(l[11] || d[s.toLowerCase()]) + '">'), c = $() + "</a>") : l[9] ? c = "<a>" : l[12] || l[14] ? c = "<" + (u = "h" + (l[14] ? l[14].length : l[13] > "=" ? 1 : 2)) + ">" + t(l[12] || l[15], d) + "</" + u + ">" : l[16] ? c = "<code>" + r(l[16]) + "</code>" : (l[17] || l[1]) && (c = h(l[17] || "--"))), i += s, i += c;
+								return (i + o.substring(m) + $()).replace(/^\n+|\n+$/g, "")
+							}
+						});
+					</script>
 					<script>
 						function deleteModal(e) {
 							const deleteUrl = e.dataset.deleteurl;
@@ -1276,7 +1338,41 @@ function insertJquery()
 
 							document.getElementById('confirmDelete').showModal();
 						}
-						</script>
+
+						function convertMarkdown() {
+							// convert the comments to markdown
+							const comments = document.querySelectorAll('[data-markdown]');
+							comments.forEach(comment => {
+								const commentId = comment.dataset.comment;
+								const commentText = comment.innerHTML;
+								const markdown = snarkdown(commentText);
+								comment.innerHTML = markdown;
+								retarget(comment);
+
+
+							});
+						}
+
+						function retarget(el) {
+							if (el.nodeName === 'A' && !el.target && el.origin !== location.origin) {
+								el.setAttribute('target', '_blank');
+								el.setAttribute('rel', 'noreferrer noopener');
+							}
+							for (let i = el.children.length; i--;) retarget(el.children[i]);
+						}
+
+						convertMarkdown();
+
+
+						document.addEventListener("ajaxify:load", function(e) {
+							// trigger event that pageName input value has changed
+
+							// wait 100ms before triggering pageInit
+							setTimeout(function() {
+								convertMarkdown();
+							}, 100);
+						});
+					</script>
 
 					<div id="comment-create">
 						<h4>Post a comment</h4>

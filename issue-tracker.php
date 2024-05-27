@@ -391,8 +391,7 @@ function notify($id, $subject, $body)
 
 		try {
 			mail($to, $subject, $body, $headers);       // standard php mail, hope it passes spam filter :)
-		} catch(Error) {
-			
+		} catch (Error) {
 		}
 	}
 }
@@ -482,15 +481,6 @@ function insertJquery()
 	<!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css"> -->
 	<style>
 		<?php echo insertCss(); ?>
-		/* html { overflow-y: scroll;}
-		body { font-family: sans-serif; font-size: 11px; background-color: #aaa;}
-		a, a:visited{color:#004989; text-decoration:none;}
-		a:hover{color: #666; text-decoration: underline;}
-		label{ display: block; font-weight: bold;}
-		table{border-collapse: collapse;}
-		th{text-align: left; }
-		tr:hover{background-color: #f0f0f0;} */
-
 		h1 a {
 			color: var(--text-main);
 			text-decoration: none;
@@ -527,6 +517,28 @@ function insertJquery()
 			margin: 10px 0;
 			border: 1px solid var(--border);
 			border-radius: 6px;
+		}
+
+		.highlightedComment {
+			/* highlight border */
+			border: 2px solid #fedd48;
+
+			/* pulsate shadow */
+			animation: pulsate 1s infinite;
+		}
+
+		@keyframes pulsate {
+			0% {
+				box-shadow: 0 0 0 0 rgba(254, 221, 72, 0.7);
+			}
+
+			50% {
+				box-shadow: 0 0 0 10px rgba(254, 221, 72, 0);
+			}
+
+			100% {
+				box-shadow: 0 0 0 0 rgba(254, 221, 72, 0);
+			}
 		}
 
 		/* .comment:target{outline: 2px solid #444;} */
@@ -750,6 +762,17 @@ function insertJquery()
 			text-decoration: none !important;
 			cursor: pointer;
 		}
+
+		.issueMeta {
+			color: var(--form-placeholder);
+			font-size: 0.8em;
+		}
+
+		.issueMeta img {
+			width: 1.3em;
+			height: 1.3em;
+			vertical-align: middle;
+		}		
 	</style>
 
 	<script>
@@ -919,11 +942,11 @@ function insertJquery()
 				echo 'Edit';
 			} ?>
 		</button>
-		<dialog id="create" class='<?php echo isset($_GET['editissue']) ? '' : 'hide'; ?>'>
+		<dialog id="create" class='<?php echo isset($_GET['editissue']) ? '' : 'hide'; ?>' style="max-width: 90%;">
 			<form method="POST" action='<?php echo getUrl(); ?>'>
 				<input type="hidden" name="id" value="<?php echo (isset($issue) ? $issue['id'] : ''); ?>" />
-				<label>Title</label><input type="text" size="50" name="title" id="title" value="<?php echo htmlentities((isset($issue['title']) ? $issue['title'] : '')); ?>" />
-				<label>Description</label><textarea name="description" rows="5" cols="50"><?php echo htmlentities((isset($issue['description']) ? $issue['description'] : '')); ?></textarea>
+				<label>Title</label><input type="text" style="max-width: 85vw;" size="50" name="title" id="title" value="<?php echo htmlentities((isset($issue['title']) ? $issue['title'] : '')); ?>" />
+				<label>Description</label><textarea style="max-width: 90vw;" name="description" rows="5" cols="50"><?php echo htmlentities((isset($issue['description']) ? $issue['description'] : '')); ?></textarea>
 
 				Priority
 				<select name="priority">
@@ -931,9 +954,21 @@ function insertJquery()
 					<option selected value="2">Medium</option>
 					<option value="3">Low</option>
 				</select>
+				<br>
+
+				<?php
+				if (isset($issue['id'])) {
+					// check if user is admin
+					if ($_SESSION['tit']['admin'] === true || $_SESSION['tit']['username'] === $issue['user']) {
+				?>
+
+						<button onclick="document.getElementById('confirmDeleteIssue').showModal();" style="background-color: #f85149;">Delete</button>
+				<?php
+					}
+				}
+				?>
 				<label></label><input style="float: right;" type="submit" name="createissue" value="<?php echo (empty($issue['id']) ? "Create" : "Edit"); ?>" />
-				<? if (!$issue['id']) { ?>
-				<? } ?>
+
 
 				<button onclick="document.getElementById('create').close();document.getElementById('create').className='hide';" style="float: right;">Cancel</button>
 
@@ -948,52 +983,17 @@ function insertJquery()
 				}
 				?>
 				<h2><?php if (isset($STATUSES[$_GET['status']])) echo $STATUSES[$_GET['status']] . " "; ?>Issues</h2>
-				<table border=1 cellpadding=5 width="100%" style="display: none;">
-					<tr>
-						<th>ID</th>
-						<th>Title</th>
-						<th>Created by</th>
-						<th>Date</th>
-						<th><acronym title="Watching issue?">W</acronym></th>
-						<th>Last Comment</th>
-						<th>Actions</th>
-					</tr>
-					<?php
-					$count = 1;
-					foreach ($issues as $issue) {
-						$count++;
-						echo "<tr class='p{$issue['priority']}'>\n";
-						echo "<td>{$issue['id']}</a></td>\n";
-						echo "<td><a href='?id={$issue['id']}'>" . htmlentities($issue['title'], ENT_COMPAT, "UTF-8") . "</a></td>\n";
-						echo "<td>{$issue['user']}</td>\n";
-						echo "<td>{$issue['entrytime']}</td>\n";
-						echo "<td>" . ($_SESSION['tit']['email'] && strpos($issue['notify_emails'], $_SESSION['tit']['email']) !== FALSE ? "&#10003;" : "") . "</td>\n";
-						echo "<td>" . ($issue['comment_user'] ? date("M j", strtotime($issue['comment_time'])) . " (" . $issue['comment_user'] . ")" : "") . "</td>\n";
-						echo "<td><a href='?editissue&id={$issue['id']}'>Edit</a>";
-						if ($_SESSION['tit']['admin'] || $_SESSION['tit']['username'] == $issue['user']) echo " | <a href='?deleteissue&id={$issue['id']}' onclick='return confirm(\"Are you sure? All comments will be deleted too.\");'>Delete</a>";
-						echo "</td>\n";
-						echo "</tr>\n";
-					}
-					?>
-				</table>
-				<!-- new github like issue list -->
 
 				<div class="issueList">
-					<!-- example issue -->
-
-
 					<?php
 					foreach ($issues as $issue) {
 						global $comments;
 
 					?>
-						<script>
-							console.log(<?php echo json_encode($issue); ?>)
-							console.log(<?php echo json_encode($comments); ?>)
-						</script>
+			
 						<a href="?id=<?php echo $issue['id']; ?>">
 
-							<div class="issueItem" data-ctx="true" data-issueId="<?php echo $issue['id']; ?>">
+							<div class="issueItem" data-ctx="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo ($_SESSION['tit']['admin'] === true || $_SESSION['tit']['username'] === $issue['user']); ?>">
 								<span class="issueStatus <?php
 															if ($issue['priority'] == 1) {
 																echo 'important';
@@ -1056,7 +1056,7 @@ function insertJquery()
 									</div>
 									<div class="itemDetails">
 										<div class="left">
-											Opened on <span><?php echo $issue['entrytime']; ?></span> by <span><?php echo $issue['user']; ?></span>
+											Opened <span title="<?php echo $issue['entrytime']; ?>"><?php echo timeToString($issue['entrytime']); ?></span> ago by <span><?php echo $issue['user']; ?></span>
 										</div>
 										<?php if ($issue['comment_count'] > 0) { ?>
 											<div class="right">
@@ -1090,7 +1090,7 @@ function insertJquery()
 								Edit
 							</a>
 							<br>
-							<a class="important" href="#" onclick="document.getElementById('confirmDelete').showModal();">
+							<a class="important" href="#" data-ctxAction="delete" onclick="document.getElementById('confirmDelete').showModal();">
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash-2">
 									<polyline points="3 6 5 6 21 6"></polyline>
 									<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -1107,61 +1107,12 @@ function insertJquery()
 								<br>
 								<div>
 									<button onclick="document.getElementById('confirmDelete').close();" class="left">Cancel</button>
-									<a href="#" data-ctxAction="delete" class="right important btn" id="confirmDeleteButton">Delete</a>
+									<a href="#" class="right important btn" id="confirmDeleteButton">Delete</a>
 								</div>
 							</form>
 						</dialog>
 
-						<script>
-							oncontextmenu = (e) => {
-								// check if a parent element has the data-ctx attribute in the hierarchy
-								if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx) {
-									showCtxMenu(e, e.target.closest('.issueItem').dataset.issueid);
-								}
-							}
 
-							function showCtxMenu(e, issueId) {
-								// prevent default context menu
-								e.preventDefault();
-								console.log(issueId);
-
-								// get the context menu element
-								var ctxmenu = document.getElementById('ctxmenuTemplate');
-
-								// get all ctx actions in the context menu
-								var ctxActions = ctxmenu.querySelectorAll('[data-ctxAction]');
-								// loop through all ctx actions
-								ctxActions.forEach(ctxAction => {
-									// get the action
-									var action = ctxAction.dataset.ctxaction;
-									if (action == 'edit') {
-										ctxAction.href = `?editissue&id=${issueId}`;
-									} else if (action == 'delete') {
-										// ctxAction.href = `?deleteissue&id=${issueId}`;
-									}
-								});
-
-								const confirmDeleteButton = document.getElementById('confirmDeleteButton');
-								confirmDeleteButton.href = `?deleteissue&id=${issueId}`;
-
-								// set the position of the context menu
-								ctxmenu.style.top = `${e.clientY}px`;
-								ctxmenu.style.left = `${e.clientX}px`;
-
-								// show the context menu
-								ctxmenu.style.display = 'block';
-
-								// hide the context menu when clicked outside
-								document.addEventListener('click', hideCtxMenu);
-							}
-
-
-							function hideCtxMenu() {
-								const ctxmenu = document.getElementById('ctxmenuTemplate');
-								ctxmenu.style.display = 'none';
-								document.removeEventListener('click', hideCtxMenu);
-							}
-						</script>
 
 					<?php } ?>
 				</div>
@@ -1175,8 +1126,17 @@ function insertJquery()
 					<div class="issue">
 						<h2><?php echo htmlentities($issue['title'], ENT_COMPAT, "UTF-8"); ?></h2>
 						<p data-markdown="true"><?php echo nl2br(preg_replace("/([a-z]+:\/\/\S+)/", "<a href='$1'>$1</a>", htmlentities($issue['description'], ENT_COMPAT, "UTF-8"))); ?></p>
+						<div class="issueMeta right">
+							<img src="https://www.gravatar.com/avatar/<?php echo $comment['gravatar']; ?>?s=20&d=retro" alt="Gravatar" class="gravatar" onerror="this.style.display = 'none';this.nextElementSibling.style.display = 'inline-block';">
+							<svg class="userCirlce" style="display: none;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-user">
+								<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+								<circle cx="12" cy="7" r="4"></circle>
+							</svg>
+							<?php echo $issue['user']; ?> - <?php echo timeToString($issue['entrytime']); ?> ago
+						</div>
 					</div>
-					<hr />
+					<hr style="width: 100%; margin-top: 15px;">
+
 					<br>
 					<div class='between'>
 						<div>Priority <select name="priority" onchange="location='<?php echo $_SERVER['PHP_SELF']; ?>?changepriority&id=<?php echo $issue['id']; ?>&priority='+this.value">
@@ -1205,9 +1165,7 @@ function insertJquery()
 						</form>
 					</div>
 				</div>
-				<script>
-					console.log(<?php echo json_encode($issue); ?>);
-				</script>
+			
 				<div class='clear'></div>
 				<div id="comments">
 					<?php
@@ -1284,95 +1242,17 @@ function insertJquery()
 						</form>
 					</dialog>
 
+					<dialog id="confirmDeleteIssue" style="width: 300px; height: 100px;">
+						<form method="POST">
+							<label>Are you sure you want to delete this issue?</label>
+							<br>
+							<div>
+								<button onclick="document.getElementById('confirmDelete').close();" class="left">Cancel</button>
+								<a class="right important btn" id="confirmDeleteButton" href="?deleteissue&id=<?php echo $issue['id']; ?>">Delete</a>
+							</div>
+						</form>
+					</dialog>
 
-					<script>
-						! function(e, n) {
-							"object" == typeof exports && "undefined" != typeof module ? module.exports = n() : "function" == typeof define && define.amd ? define(n) : (e = e || self).snarkdown = n()
-						}(this, function() {
-							var e = {
-								"": ["<em>", "</em>"],
-								_: ["<strong>", "</strong>"],
-								"*": ["<strong>", "</strong>"],
-								"~": ["<s>", "</s>"],
-								"\n": ["<br />"],
-								" ": ["<br />"],
-								"-": ["<hr />"]
-							};
-
-							function n(e) {
-								return e.replace(RegExp("^" + (e.match(/^(\t| )+/) || "")[0], "gm"), "")
-							}
-
-							function r(e) {
-								return (e + "").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-							}
-							return function t(o, a) {
-								var c, s, l, g, u, p = /((?:^|\n+)(?:\n---+|\* \*(?: \*)+)\n)|(?:^``` *(\w*)\n([\s\S]*?)\n```$)|((?:(?:^|\n+)(?:\t| {2,}).+)+\n*)|((?:(?:^|\n)([>*+-]|\d+\.)\s+.*)+)|(?:!\[([^\]]*?)\]\(([^)]+?)\))|(\[)|(\](?:\(([^)]+?)\))?)|(?:(?:^|\n+)([^\s].*)\n(-{3,}|={3,})(?:\n+|$))|(?:(?:^|\n+)(#{1,6})\s*(.+)(?:\n+|$))|(?:`([^`].*?)`)|( \n\n*|\n{2,}|__|\*\*|[_*]|~~)/gm,
-									f = [],
-									i = "",
-									d = a || {},
-									m = 0;
-
-								function h(n) {
-									var r = e[n[1] || ""],
-										t = f[f.length - 1] == n;
-									return r ? r[1] ? (t ? f.pop() : f.push(n), r[0 | t]) : r[0] : n
-								}
-
-								function $() {
-									for (var e = ""; f.length;) e += h(f[f.length - 1]);
-									return e
-								}
-								for (o = o.replace(/^\[(.+?)\]:\s*(.+)$/gm, function(e, n, r) {
-										return d[n.toLowerCase()] = r, ""
-									}).replace(/^\n+|\n+$/g, ""); l = p.exec(o);) s = o.substring(m, l.index), m = p.lastIndex, c = l[0], s.match(/[^\\](\\\\)*\\$/) || ((u = l[3] || l[4]) ? c = '<pre class="code ' + (l[4] ? "poetry" : l[2].toLowerCase()) + '"><code' + (l[2] ? ' class="language-' + l[2].toLowerCase() + '"' : "") + ">" + n(r(u).replace(/^\n+|\n+$/g, "")) + "</code></pre>" : (u = l[6]) ? (u.match(/\./) && (l[5] = l[5].replace(/^\d+/gm, "")), g = t(n(l[5].replace(/^\s*[>*+.-]/gm, ""))), ">" == u ? u = "blockquote" : (u = u.match(/\./) ? "ol" : "ul", g = g.replace(/^(.*)(\n|$)/gm, "<li>$1</li>")), c = "<" + u + ">" + g + "</" + u + ">") : l[8] ? c = '<img src="' + r(l[8]) + '" alt="' + r(l[7]) + '">' : l[10] ? (i = i.replace("<a>", '<a href="' + r(l[11] || d[s.toLowerCase()]) + '">'), c = $() + "</a>") : l[9] ? c = "<a>" : l[12] || l[14] ? c = "<" + (u = "h" + (l[14] ? l[14].length : l[13] > "=" ? 1 : 2)) + ">" + t(l[12] || l[15], d) + "</" + u + ">" : l[16] ? c = "<code>" + r(l[16]) + "</code>" : (l[17] || l[1]) && (c = h(l[17] || "--"))), i += s, i += c;
-								return (i + o.substring(m) + $()).replace(/^\n+|\n+$/g, "")
-							}
-						});
-					</script>
-					<script>
-						function deleteModal(e) {
-							const deleteUrl = e.dataset.deleteurl;
-							const confirmDeleteButton = document.getElementById('confirmDeleteButton');
-							confirmDeleteButton.href = deleteUrl;
-
-							document.getElementById('confirmDelete').showModal();
-						}
-
-						function convertMarkdown() {
-							// convert the comments to markdown
-							const comments = document.querySelectorAll('[data-markdown]');
-							comments.forEach(comment => {
-								const commentId = comment.dataset.comment;
-								const commentText = comment.innerHTML;
-								const markdown = snarkdown(commentText);
-								comment.innerHTML = markdown;
-								retarget(comment);
-
-
-							});
-						}
-
-						function retarget(el) {
-							if (el.nodeName === 'A' && !el.target && el.origin !== location.origin) {
-								el.setAttribute('target', '_blank');
-								el.setAttribute('rel', 'noreferrer noopener');
-							}
-							for (let i = el.children.length; i--;) retarget(el.children[i]);
-						}
-
-						convertMarkdown();
-
-
-						document.addEventListener("ajaxify:load", function(e) {
-							// trigger event that pageName input value has changed
-
-							// wait 100ms before triggering pageInit
-							setTimeout(function() {
-								convertMarkdown();
-							}, 100);
-						});
-					</script>
 
 					<div id="comment-create">
 						<h4>Post a comment</h4>
@@ -1393,6 +1273,149 @@ function insertJquery()
 			Powered by <a href="https://github.com/JMcrafter26/tiny-issue-tracker" alt="Tiny Issue Tracker" target="_blank">Tiny Issue Tracker</a>
 		</div>
 	</div>
+
+
+	<script>
+		!function(e,n){"object"==typeof exports&&"undefined"!=typeof module?module.exports=n():"function"==typeof define&&define.amd?define(n):(e=e||self).snarkdown=n()}(this,function(){var e={"":["<em>","</em>"],_:["<strong>","</strong>"],"*":["<strong>","</strong>"],"~":["<s>","</s>"],"\n":["<br />"]," ":["<br />"],"-":["<hr />"]};function n(e){return e.replace(RegExp("^"+(e.match(/^(\t| )+/)||"")[0],"gm"),"")}function r(e){return(e+"").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}return function t(o,a){var c,s,l,g,u,p=/((?:^|\n+)(?:\n---+|\* \*(?: \*)+)\n)|(?:^``` *(\w*)\n([\s\S]*?)\n```$)|((?:(?:^|\n+)(?:\t|  {2,}).+)+\n*)|((?:(?:^|\n)([>*+-]|\d+\.)\s+.*)+)|(?:!\[([^\]]*?)\]\(([^)]+?)\))|(\[)|(\](?:\(([^)]+?)\))?)|(?:(?:^|\n+)([^\s].*)\n(-{3,}|={3,})(?:\n+|$))|(?:(?:^|\n+)(#{1,6})\s*(.+)(?:\n+|$))|(?:`([^`].*?)`)|(  \n\n*|\n{2,}|__|\*\*|[_*]|~~)/gm,f=[],i="",d=a||{},m=0;function h(n){var r=e[n[1]||""],t=f[f.length-1]==n;return r?r[1]?(t?f.pop():f.push(n),r[0|t]):r[0]:n}function $(){for(var e="";f.length;)e+=h(f[f.length-1]);return e}for(o=o.replace(/^\[(.+?)\]:\s*(.+)$/gm,function(e,n,r){return d[n.toLowerCase()]=r,""}).replace(/^\n+|\n+$/g,"");l=p.exec(o);)s=o.substring(m,l.index),m=p.lastIndex,c=l[0],s.match(/[^\\](\\\\)*\\$/)||((u=l[3]||l[4])?c='<pre class="code '+(l[4]?"poetry":l[2].toLowerCase())+'"><code'+(l[2]?' class="language-'+l[2].toLowerCase()+'"':"")+">"+n(r(u).replace(/^\n+|\n+$/g,""))+"</code></pre>":(u=l[6])?(u.match(/\./)&&(l[5]=l[5].replace(/^\d+/gm,"")),g=t(n(l[5].replace(/^\s*[>*+.-]/gm,""))),">"==u?u="blockquote":(u=u.match(/\./)?"ol":"ul",g=g.replace(/^(.*)(\n|$)/gm,"<li>$1</li>")),c="<"+u+">"+g+"</"+u+">"):l[8]?c='<img src="'+r(l[8])+'" alt="'+r(l[7])+'">':l[10]?(i=i.replace("<a>",'<a href="'+r(l[11]||d[s.toLowerCase()])+'">'),c=$()+"</a>"):l[9]?c="<a>":l[12]||l[14]?c="<"+(u="h"+(l[14]?l[14].length:l[13]>"="?1:2))+">"+t(l[12]||l[15],d)+"</"+u+">":l[16]?c="<code>"+r(l[16])+"</code>":(l[17]||l[1])&&(c=h(l[17]||"--"))),i+=s,i+=c;return(i+o.substring(m)+$()).replace(/^\n+|\n+$/g,"")}});
+	</script>
+	<script>
+		function deleteModal(e) {
+			const deleteUrl = e.dataset.deleteurl;
+			const confirmDeleteButton = document.getElementById('confirmDeleteButton');
+			confirmDeleteButton.href = deleteUrl;
+
+			document.getElementById('confirmDelete').showModal();
+		}
+
+		function convertMarkdown() {
+			// convert the comments to markdown
+			const comments = document.querySelectorAll('[data-markdown]');
+			if (!comments) {
+				return;
+			}
+			comments.forEach(comment => {
+				const commentId = comment.dataset.comment;
+				const commentText = comment.innerHTML;
+				const markdown = snarkdown(commentText);
+				comment.innerHTML = markdown;
+				retarget(comment);
+			});
+		}
+
+		function retarget(el) {
+			if (el.nodeName === 'A' && !el.target && el.origin !== location.origin) {
+				el.setAttribute('target', '_blank');
+				el.setAttribute('rel', 'noreferrer noopener');
+			}
+			for (let i = el.children.length; i--;) retarget(el.children[i]);
+		}
+
+		function showCtxMenu(e, issueId, allowDelete) {
+			// prevent default context menu
+			e.preventDefault();
+
+			// get the context menu element
+			var ctxmenu = document.getElementById('ctxmenuTemplate');
+
+			// get all ctx actions in the context menu
+			var ctxActions = ctxmenu.querySelectorAll('[data-ctxAction]');
+			// loop through all ctx actions
+			ctxActions.forEach(ctxAction => {
+				// get the action
+				var action = ctxAction.dataset.ctxaction;
+				if (action == 'edit') {
+					ctxAction.href = `?editissue&id=${issueId}`;
+				} else if (action == 'delete') {
+					// if allow delete is false, hide the delete button
+					if (allowDelete == false) {
+						ctxAction.style.display = 'none';
+					} else {
+						ctxAction.style.display = 'block';
+					}
+				}
+			});
+
+			const confirmDeleteButton = document.getElementById('confirmDeleteButton');
+			confirmDeleteButton.href = `?deleteissue&id=${issueId}`;
+
+			// set the position of the context menu
+			ctxmenu.style.top = `${e.clientY}px`;
+			ctxmenu.style.left = `${e.clientX}px`;
+
+			// show the context menu
+			ctxmenu.style.display = 'block';
+
+			// hide the context menu when clicked outside
+			document.addEventListener('click', hideCtxMenu);
+		}
+
+
+		function hideCtxMenu() {
+			const ctxmenu = document.getElementById('ctxmenuTemplate');
+			ctxmenu.style.display = 'none';
+			document.removeEventListener('click', hideCtxMenu);
+		}
+
+		function highlightComment() {
+			// check if url contains hash
+			if(!window.location.hash) {
+				return;
+			}
+
+			const commentId = window.location.hash;
+			console.log(commentId);
+
+			const highlitedComments = document.querySelectorAll('.highlightedComment');
+			highlitedComments.forEach(highlitedComment => {
+				highlitedComment.classList.remove('highlightedComment');
+			});
+
+			const comment = document.querySelector(commentId);
+			if(comment) {
+				comment.classList.add('highlightedComment');
+				// scroll to the comment (smooth)
+				comment.scrollIntoView({ behavior: 'smooth' });
+
+				// add eventlistener to remove the class after user clicks on the comment
+				document.addEventListener('click', function() {
+					comment.classList.remove('highlightedComment');
+				});
+			}
+		} 
+
+		// after page load
+		document.addEventListener("DOMContentLoaded", function() {
+			convertMarkdown();
+			highlightComment();
+
+			oncontextmenu = (e) => {
+			// check if a parent element has the data-ctx attribute in the hierarchy
+			if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx) {
+				showCtxMenu(e, e.target.closest('.issueItem').dataset.issueid, e.target.closest('.issueItem').dataset.allowdelete);
+			}
+		}
+		});
+
+		document.addEventListener("ajaxify:load", function(e) {
+			// trigger event that pageName input value has changed
+			console.log('ajaxify:load');
+
+			// wait 100ms before triggering pageInit
+			setTimeout(function() {
+				convertMarkdown();
+			highlightComment();
+
+
+				oncontextmenu = (e) => {
+			// check if a parent element has the data-ctx attribute in the hierarchy
+			if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx) {
+				showCtxMenu(e, e.target.closest('.issueItem').dataset.issueid, e.target.closest('.issueItem').dataset.allowdelete);
+			}
+		}
+			}, 100);
+		});		
+	</script>
+
 </body>
 
 </html>

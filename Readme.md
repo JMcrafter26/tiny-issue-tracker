@@ -23,9 +23,11 @@ Tiny Issue Tracker is SQLite based, single-file issue tracker.
 ## Currently Working On
 
 - [ ] User Registration
-- [ ] User Roles
+- [ ] Stable Release
+- [x] Responsive Design
+- [x] User Roles
 - [ ] Better email notifications
-- [ ] Markdown Editor
+- [ ] ~~Markdown Editor~~ (Not necessary, markdown guide is enough)
 - [x] Better UI
 - [x] Better Comments
 

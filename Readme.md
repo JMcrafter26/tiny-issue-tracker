@@ -2,6 +2,8 @@
 
 Tiny Issue Tracker is SQLite based, single-file issue tracker.
 
+> This project is under active development and things may change. Please wait for a stable release ⭐️
+
 ## Features
 
 - :rocket: Super Lightweight

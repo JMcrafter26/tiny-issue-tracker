@@ -31,7 +31,7 @@ Tiny Issue Tracker is SQLite based, single-file issue tracker.
 
 [GNU GPL License](./LICENSE)
 
-This is a fork of [tit](https://github.com/jwalanta/tit) by [jwalanta](https://github.com/jwalanta/) (<-last update was 2015 😐)
+This is a fork of [tit](https://github.com/jwalanta/tit) by [jwalanta](https://github.com/jwalanta/) (<-last update was in 2015 😐)
 
 ### Changes
 

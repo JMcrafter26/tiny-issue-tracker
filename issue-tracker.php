@@ -151,7 +151,8 @@ foreach ($tempUSERS as $user) {
 		"id" => $user['id'], // <- added "id" for easier access to the user's id
 		"email" => $user['email'],
 		"entrytime" => $user['entrytime'],
-		"admin" => $user['admin']
+		"admin" => $user['admin'],
+		"gravatar" => md5($user['email'])
 	);
 }
 unset($tempUSERS, $user);
@@ -204,6 +205,7 @@ if (!isset($issue) || count($issue) == 0) {
 	// get the comment count for each issue
 	foreach ($issues as $i => $issue) {
 		$issues[$i]['comment_count'] = $db->query("SELECT count(*) FROM comments WHERE issue_id='{$issue['id']}'")->fetchColumn();
+		
 	}
 	unset($i, $issue, $comments);
 
@@ -213,6 +215,7 @@ if (!isset($issue) || count($issue) == 0) {
 	}
 } else {
 	$issue = $issue[0];
+	$issue['gravatar'] = md5($USERS[array_search($issue['user'], array_column($USERS, 'username'))]['email']);
 	$mode = "issue";
 }
 
@@ -713,7 +716,27 @@ function notify($id, $subject, $body)
 		$headers = "From: $EMAIL" . "\r\n" . 'X-Mailer: PHP/' . phpversion();
 
 		try {
-			mail($to, $subject, $body, $headers);       // standard php mail, hope it passes spam filter :)
+			mail($to, $subject, $body, $headers);   
+
+			/* $ch = curl_init();
+
+curl_setopt($ch, CURLOPT_URL,"http://ntfy.sh/");
+curl_setopt($ch, CURLOPT_POST, 1);
+curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Title: ' . $subject,
+    'X-Apple-Store-Front: 143444,12'
+]);
+
+// Receive server response ...
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+$server_output = curl_exec($ch);
+
+curl_close($ch);
+*/
+
+			// standard php mail, hope it passes spam filter :)
 		} catch (Error) {
 		}
 	}
@@ -1500,7 +1523,7 @@ function insertJquery()
 				<?php
 				if (isset($issue['id']) || $mode == "admin") {
 					// check if user is admin
-					if ($_SESSION['t1t']['admin'] === true || $_SESSION['t1t']['username'] === $issue['user'] || $mode == "admin") {
+					if ($_SESSION['t1t']['admin'] == 1 || $_SESSION['t1t']['username'] === $issue['user'] || $mode == "admin") {
 				?>
 
 						<script>
@@ -1544,7 +1567,7 @@ function insertJquery()
 						<div class="issueItemParent" style="text-decoration: none; cursor: pointer;" data-longclick="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo ($_SESSION['t1t']['admin'] === true || $_SESSION['t1t']['username'] === $issue['user']); ?>" onmousedown="if(event.button == 1) {window.open('<?php echo $_SERVER['PHP_SELF']; ?>?id=<?php echo $issue['id']; ?>'); return false;}" onclick="if (window.getSelection().toString() == '') { 
 							window.ajaxify('<?php echo $_SERVER['PHP_SELF']; ?>?id=<?php echo $issue['id']; ?>');
 						}">
-							<div class="issueItem" data-ctx="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo ($_SESSION['t1t']['admin'] === true || $_SESSION['t1t']['username'] === $issue['user']); ?>">
+							<div class="issueItem" data-ctx="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo ($_SESSION['t1t']['admin'] == 1 || $_SESSION['t1t']['username'] === $issue['user']); ?>">
 								<span class="issueStatus <?php
 															if ($issue['priority'] == 1) {
 																echo 'important';
@@ -1653,7 +1676,7 @@ function insertJquery()
 						<h2><?php echo htmlentities($issue['title'], ENT_COMPAT, "UTF-8"); ?></h2>
 						<p data-markdown="true"><?php echo htmlentities($issue['description'], ENT_COMPAT, "UTF-8"); ?></p>
 						<div class="issueMeta right">
-							<img src="https://www.gravatar.com/avatar/<?php echo $comment['gravatar']; ?>?s=20&d=retro" alt="Gravatar" class="gravatar" onerror="this.style.display = 'none';this.nextElementSibling.style.display = 'inline-block';">
+							<img src="https://www.gravatar.com/avatar/<?php echo $issue['gravatar']; ?>?s=20&d=retro" alt="Gravatar" class="gravatar" onerror="this.style.display = 'none';this.nextElementSibling.style.display = 'inline-block';">
 
 							<svg class="userCirlce" style="display: none;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-user">
 								<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -2005,7 +2028,7 @@ function insertJquery()
 
 		<dialog id="mobileCtxmenuTemplate">
 					<!-- <label>Are you sure you want to delete this issue?</label> -->
-					<div>
+					<div style="text-align: center;">
 
 
 						<a class="btn" href="#" data-ctxAction="newtab">

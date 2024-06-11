@@ -12,6 +12,8 @@
 // CONFIGURATION //
 ///////////////////
 
+$VERSION = 3.2;
+
 // no display errors
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
@@ -193,7 +195,7 @@ if (isset($_GET["id"])) {
 }
 
 // if no issue found, go to list mode
-if (isset($_GET['admin-area'])) {
+if (isset($_GET['admin-panel'])) {
 	// check if user is admin
 	if ($_SESSION['t1t']['admin']) {
 		$mode = "admin";
@@ -483,7 +485,7 @@ if (isset($_POST["edituser"])) {
 
 			// die($message);
 
-			header("Location: ?admin-area&message=" . $message);
+			header("Location: ?admin-panel&message=" . $message);
 		}
 	}
 }
@@ -491,21 +493,21 @@ if (isset($_POST["edituser"])) {
 // Delete User
 if (isset($_GET["deleteuser"])) {
 	// check if user is admin
-	if (isAdmin() && isset($_GET["id"])) {
+	if (isAdmin() && isset($_GET["userId"])) {
 		$mode = "admin";
 
 
-		if (isset($_GET["id"])) {
+		
 			$now = date("Y-m-d H:i:s");
 
 			// check if user exists (same username / email)
-			$users = $db->query("SELECT * FROM users WHERE id='{$_GET['id']}'")->fetchAll();
+			$users = $db->query("SELECT * FROM users WHERE id='{$_GET['userId']}'")->fetchAll();
 			// if user is admin, do not delete
 			if ($users[0]['admin'] == 1) {
 				$message = "Cannot delete admin";
 			} else {
 			if (count($users) > 0) {
-				$query = "DELETE FROM users WHERE id='{$_GET['id']}'"; // delete
+				$query = "DELETE FROM users WHERE id='{$_GET['userId']}'"; // delete
 				$db->exec($query);
 				$message = "User deleted";
 			} else {
@@ -513,20 +515,20 @@ if (isset($_GET["deleteuser"])) {
 			}
 		}
 
-			header("Location: ?admin-area&message=" . $message);
+			header("Location: ?admin-panel&message=" . $message);
 		}
-	}
+	
 }
 
 // Ban User
 if (isset($_GET["banuser"])) {
 	// check if user is admin
-	if (isAdmin() && isset($_GET["id"])) {
+	if (isAdmin() && isset($_GET['userId'])) {
 		$mode = "admin";
 
 
-		if (isset($_GET["id"])) {
-			$id = pdo_escape_string($_GET['id']);
+		
+			$id = pdo_escape_string($_GET['userId']);
 			$now = date("Y-m-d H:i:s");
 
 			// check if user exists (same username / email)
@@ -544,22 +546,23 @@ if (isset($_GET["banuser"])) {
 			}
 		}
 
-			header("Location: ?admin-area&message=" . $message);
+			header("Location: ?admin-panel&message=" . $message);
 		}
-	}
 }
 
 
 // Unban User
 if (isset($_GET["unbanuser"])) {
+	
 	// check if user is admin
-	if (isAdmin() && isset($_GET["id"])) {
+	if (isAdmin() && isset($_GET["userId"])) {
 		$mode = "admin";
 
 
-		if (isset($_GET["id"])) {
-			$id = pdo_escape_string($_GET['id']);
+		
+			$id = pdo_escape_string($_GET['userId']);
 			$now = date("Y-m-d H:i:s");
+			
 
 			// check if user exists (same username / email)
 			$users = $db->query("SELECT * FROM users WHERE id='$id'")->fetchAll();
@@ -570,11 +573,26 @@ if (isset($_GET["unbanuser"])) {
 			} else {
 				$message = "User not found";
 			}
+			
+			
 
-			header("Location: ?admin-area&message=" . $message);
-		}
+			header("Location: ?admin-panel&message=" . $message);
+	}
+	
+}
+
+if (isset($_GET["getupdateinfo"]) && isAdmin()) {
+	try {
+		$updateInfo = json_decode(file_get_contents("https://raw.githack.com/JMcrafter26/tiny-issue-tracker/main/version.json"), true);
+	} catch(Exception $e) {
+		$message += "Error getting update info";
+	}
+	
+	if (!isset($_GET['admin-panel'])) {
+		header("Location: ?admin-panel&message=" . $message);
 	}
 }
+	
 
 if(isset($_GET['message'])) {
 	$message = $_GET['message'];
@@ -1354,6 +1372,14 @@ function insertJquery()
 				transform: rotate(360deg);
 			}
 		}
+		
+		.settingContainer {
+			
+			padding: 10px;
+			margin-top: 20px;
+			border-radius: 15px;
+			border: 1px solid var(--border);
+		}
 	</style>
 
 	<script>
@@ -1548,9 +1574,9 @@ function insertJquery()
 				}
 				
 				
-					if (isset($_GET['status']) && $_GET['status'] == $code || (isset($issue) && $issue['status'] == $code) && !isset($_GET['admin-area'])) {
+					if (isset($_GET['status']) && $_GET['status'] == $code || (isset($issue) && $issue['status'] == $code) && !isset($_GET['admin-panel'])) {
 						$style = "style='font-weight: bold;'";
-					} else if (!isset($_GET['status']) && !isset($issue) && $code == 0 && !isset($_GET['admin-area'])) {
+					} else if (!isset($_GET['status']) && !isset($issue) && $code == 0 && !isset($_GET['admin-panel'])) {
 						$style = "style='font-weight: bold;'";
 					} else {
 						$style = "";
@@ -1562,10 +1588,10 @@ function insertJquery()
 			// if user is admin
 			if ($_SESSION['t1t']['admin'] === 1) {
 				$style = "";
-				if (isset($_GET['admin-area'])) {
+				if (isset($_GET['admin-panel'])) {
 					$style = "font-weight: bold;";
 				}
-				echo "<a href='{$_SERVER['PHP_SELF']}?admin-area' alt='Admin Area' style='color: #f85149;$style'>Admin Area</a> | ";
+				echo "<a href='{$_SERVER['PHP_SELF']}?admin-panel' alt='Admin Panel' style='color: #f85149;$style'>Admin Panel</a> | ";
 			}
 			?>
 			<a href="?logout" alt="Logout" target="_self">
@@ -1986,14 +2012,18 @@ function insertJquery()
 						<circle cx="12" cy="8" r="7"></circle>
 						<polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
 					</svg>
-					Admin Area
+					Admin Panel
 				</h2>
+				<hr>
+				<br>
 
 				<?php
 				if (isset($message) && $message != '') {
 					echo "<div class='message'>$message</div>";
 				}
 				?>
+				
+				<h3>Users</h3>
 
 				<div class="issueList">
 					<?php
@@ -2001,7 +2031,7 @@ function insertJquery()
 					?>
 
 
-						<div class="issueItem" data-ctx="true" data-userid="<?php echo $user['id']; ?>" data-allowdelete="<?php echo ($user['username'] !== $_SESSION['t1t']['username'] && $user['username'] !== 'admin') ? 'true' : 'false'; ?>" data-userinfo='<?php echo json_encode($user); ?>'>
+						<div class="issueItem" data-ctx="true" data-userid="<?php echo $user['id']; ?>" data-allowdelete="<?php echo ($user['username'] != $_SESSION['t1t']['username'] && $user['username'] != 'admin') ? 'true' : 'false'; ?>" data-userinfo='<?php echo json_encode($user); ?>'>
 							<span class="issueStatus <?php
 														if ($user['admin'] == 3) {
 															echo 'warning';
@@ -2046,6 +2076,7 @@ function insertJquery()
 							</div>
 						</div>
 
+						<?php } ?>
 
 
 
@@ -2072,8 +2103,44 @@ function insertJquery()
 								</div>
 							</form>
 						</dialog>
-					<?php } ?>
+					
 				</div>
+				
+				<br>
+				<h3>Update</h3>
+				<form action="?admin-panel&getupdateinfo" method="GET" class="settingContainer">
+				<button type="submit" onclick="this.firstElementChild.classList.add('loaderIcon');" >
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-refresh-cw"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+				Check for updates
+				</button>
+				
+				<br>
+				<?php 
+				if(isset($updateInfo)) {
+				if($updateInfo['latest'] > $VERSION) {
+					?>
+					<h4>New update available! <a href="https://github.com/JMcrafter26/tiny-issue-tracker" target="_blank">Update Now</a><h4>
+					<?php
+					} else {
+					?>
+					<h4>No updates :)</h4>
+					<?php
+					}
+				} ?>
+				<p>Your version: <?php echo $VERSION; ?><br>
+				<?php 
+				if(isset($updateInfo)) {
+					?>
+					Latest version: <?php echo $updateInfo['latest'];?><br>
+					<p>Release Notes:<br>
+					<?php echo $updateInfo['changes']; ?><p>
+					
+					<?php
+				} 
+				?>
+				</p>
+				
+				</form>
 
 			</div>
 		<?php endif; ?>
@@ -2193,7 +2260,12 @@ function insertJquery()
 				</defs>
 				<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
 			</svg>
-			Powered by <a href="https://github.com/JMcrafter26/tiny-issue-tracker" alt="Tiny Issue Tracker" target="_blank">Tiny Issue Tracker</a>
+			Powered by <a href="https://github.com/JMcrafter26/tiny-issue-tracker" alt="Tiny Issue Tracker" target="_blank">Tiny Issue Tracker</a> V<?php
+			if ($_SESSION['t1t']['admin'] == 1) {
+				echo $VERSION;
+			}
+			
+			?>
 		</div>
 	</div>
 
@@ -2449,7 +2521,7 @@ function insertJquery()
 								ctxAction.style.color = '#4caf50';
 								ctxAction.style.display = 'block';
 								ctxAction.onclick = '';
-								ctxAction.href = `?unbanuser&id=${user.id}`;
+								ctxAction.href = `?unbanuser&userId=${user.id}`;
 
 							} else {
 								ctxAction.style.display = 'block';
@@ -2474,8 +2546,8 @@ function insertJquery()
 					}
 				});
 
-				document.getElementById('confirmDeleteButton').href = `?deleteuser&id=${user.id}`;
-				document.getElementById('confirmBanButton').href = `?banuser&id=${user.id}`;
+				document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}`;
+				document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}`;
 				// change submitFormBtn to edit
 				document.getElementById('submitFormBtn').innerHTML = 'Save';
 
@@ -2587,7 +2659,7 @@ function insertJquery()
 							ctxAction.style.backgroundColor = '#4caf50';
 							ctxAction.style.display = 'block';
 							ctxAction.onclick = '';
-							ctxAction.href = `?unbanuser&id=${user.id}`;
+							ctxAction.href = `?unbanuser&userId=${user.id}`;
 
 						} else {
 							ctxAction.style.display = 'block';
@@ -2613,8 +2685,8 @@ function insertJquery()
 					return;
 				}
 
-				document.getElementById('confirmDeleteButton').href = `?deleteuser&id=${user.id}`;
-				document.getElementById('confirmBanButton').href = `?banuser&id=${user.id}`;
+				document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}`;
+				document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}`;
 				// change submitFormBtn to edit
 								document.getElementById('submitFormBtn').innerHTML = 'Save';
 			} else {

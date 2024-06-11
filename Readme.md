@@ -13,6 +13,7 @@ Tiny Issue Tracker is SQLite based, single-file issue tracker.
 - :fire: Issue Priority (High, Medium, Low)
 - :speech_balloon: Comment on issues
 - :memo: Markdown support
+- 🌐 Fully Works offline
 - :running: Throw and run!
 
 ## Installation

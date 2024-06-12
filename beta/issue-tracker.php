@@ -12,7 +12,7 @@
 // CONFIGURATION //
 ///////////////////
 
-$VERSION = 3.2;
+$VERSION = 3.0;
 
 // no display errors
 ini_set('display_errors', 1);
@@ -482,7 +482,7 @@ if (isset($_POST["edituser"])) {
 		$mode = "admin";
 
 
-		if (isset($_POST["username"]) && isset($_POST["email"]) && isset($_POST["status"])) {
+		if (isset($_POST["username"]) && $_POST['username'] != '' && isset($_POST["email"]) && isset($_POST["status"])) {
 			$username = pdo_escape_string($_POST['username']);
 			$username = strtolower($username);
 			$email = pdo_escape_string($_POST['email']);

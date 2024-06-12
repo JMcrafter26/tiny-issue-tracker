@@ -3197,11 +3197,10 @@ function insertJquery()
 		});
 
 		document.addEventListener("ajaxify:load", function(e) {
-			showTips();
 
 			// wait 100ms before triggering pageInit
 			setTimeout(function() {
-
+				showTips();
 				pageInit();
 			}, 100);
 		});

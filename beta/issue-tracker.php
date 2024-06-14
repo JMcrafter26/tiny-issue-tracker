@@ -55,8 +55,6 @@ if (!defined("TIT_INCLUSION")) {
 ////// DO NOT EDIT BEYOND THIS IF YOU DON'T KNOW WHAT YOU'RE DOING /////
 ////////////////////////////////////////////////////////////////////////
 
-// if (get_magic_quotes_gpc()){ // DEPRECATED
-
 foreach ($_GET  as $k => $v) $_GET[$k] = stripslashes($v);
 foreach ($_POST as $k => $v) $_POST[$k] = stripslashes($v);
 
@@ -141,7 +139,7 @@ if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password'])
 
 // create tables if not exist
 $db->exec("CREATE TABLE if not exists issues (id INTEGER PRIMARY KEY, title TEXT, description TEXT, user TEXT, status INTEGER NOT NULL DEFAULT '0', priority INTEGER, notify_emails TEXT, entrytime DATETIME)");
-$db->exec("CREATE TABLE if not exists comments (id INTEGER PRIMARY KEY, issue_id INTEGER, user TEXT, description TEXT, entrytime DATETIME)");
+$db->exec("CREATE TABLE if not exists comments (id INTEGER PRIMARY KEY, issue_id INTEGER, user TEXT, description TEXT, tags TEXT entrytime DATETIME)");
 $db->exec("CREATE TABLE if not exists config (id INTEGER PRIMARY KEY, key TEXT, value TEXT, entrytime DATETIME)");
 
 if (count($db->query("SELECT * FROM config WHERE key = 'seed'")->fetchAll()) < 1) {

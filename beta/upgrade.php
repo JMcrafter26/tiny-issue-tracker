@@ -17,7 +17,7 @@ $DB_CONNECTION = '';
 $DB_USERNAME = "";
 $DB_PASSWORD = "";
 $BACKED_UP = false; // Set to true if you have backed up the database manually
-$version = 3.1;
+$version = 0;
 
 // get the database from tiny-issue-tracker.php
 if (!$DB_CONNECTION) {
@@ -63,9 +63,9 @@ try {
 }
 
 // get the version from the database
-if($version == 0) {
+if ($version == 0) {
     try {
-        $version = $db->query("SELECT version FROM config")->fetchColumn();
+        $version = $db->query("SELECT value FROM config WHERE key = 'version'")->fetchColumn();
     } catch (PDOException $e) {
         echo "No version found in database, please set the version manually in this file in the variable \$version\n";
         echo "Set it to the version of the database, if you just updated the file, use the previous version\n";
@@ -76,7 +76,8 @@ if($version == 0) {
 
 
 if ($version == $UPDATE_VERSION) {
-    echo "Database is already up to date\n";
+    echo "Database is already up to date with this update script (Update version $UPDATE_VERSION, Database version $version)\n";
+    echo "Please make sure you have updated the main script to the latest version\n";
     exit;
 } else {
     echo "Updating database from version $version to $UPDATE_VERSION\n";
@@ -99,53 +100,92 @@ if (strpos($DB_CONNECTION, 'sqlite') !== false) {
     }
     echo "Database backed up to $backup\n";
 } else {
-    if(!$BACKED_UP) {
-    echo "Backup not supported for this database type\n";
-    echo "Please backup the database manually before proceeding\n";
-    exit;
+    if (!$BACKED_UP) {
+        echo "Backup not supported for this database type\n";
+        echo "Please backup the database manually before proceeding\n";
+        exit;
     }
 }
 
 // update the database
 
-// in users, rename collum admin to role
-try {
-    $db->exec("ALTER TABLE users RENAME COLUMN admin TO role");
-} catch (PDOException $e) {
-    echo "Error updating users table: " . $e->getMessage();
-    exit;
+// check if collum admin in users exists
+$result = $db->query("PRAGMA table_info(users)");
+$result->setFetchMode(PDO::FETCH_ASSOC);
+$meta = array();
+foreach ($result as $row) {
+   array_push($meta, $row['name']);
+}
+$collum_exists = in_array('admin', $meta);
+
+if ($collum_exists) {
+    echo "Renaming admin collum to role in users table\n";
+
+    // in users, rename collum admin to role
+    try {
+        $db->exec("ALTER TABLE users RENAME COLUMN admin TO role");
+    } catch (PDOException $e) {
+        echo "Error updating users table: " . $e->getMessage();
+        exit;
+    }
+
+    // if role is 1, set it to 4
+    try {
+        $db->exec("UPDATE users SET role = 4 WHERE role = 1");
+    } catch (PDOException $e) {
+        echo "Error updating users table: " . $e->getMessage();
+        exit;
+    }
+
+    // if user is admin, set role to 5
+    try {
+        $db->exec("UPDATE users SET role = 5 WHERE role = 4");
+    } catch (PDOException $e) {
+        echo "Error updating users table: " . $e->getMessage();
+        exit;
+    }
+
+    // if role is 0, set it to 2
+    try {
+        $db->exec("UPDATE users SET role = 2 WHERE role = 0");
+    } catch (PDOException $e) {
+        echo "Error updating users table: " . $e->getMessage();
+        exit;
+    }
+
+    // if role is 3, set it to 0
+    try {
+        $db->exec("UPDATE users SET role = 0 WHERE role = 3");
+    } catch (PDOException $e) {
+        echo "Error updating users table: " . $e->getMessage();
+        exit;
+    }
+} else {
+    echo "Skipping adding admin collum to users table\n";
 }
 
-// if role is 1, set it to 4
-try {
-    $db->exec("UPDATE users SET role = 4 WHERE role = 1");
-} catch (PDOException $e) {
-    echo "Error updating users table: " . $e->getMessage();
-    exit;
+unset($meta, $collum_exists, $result);
+$result = $db->query("PRAGMA table_info(issues)");
+$result->setFetchMode(PDO::FETCH_ASSOC);
+$meta = array();
+foreach ($result as $row) {
+   array_push($meta, $row['name']);
 }
+$collum_exists = in_array('tags', $meta);
 
-// if user is admin, set role to 5
-try {
-    $db->exec("UPDATE users SET role = 5 WHERE role = 4");
-} catch (PDOException $e) {
-    echo "Error updating users table: " . $e->getMessage();
-    exit;
-}
+if ($collum_exists == false) {
+    echo "Adding tags collum to issues table\n";
 
-// if role is 0, set it to 2
-try {
-    $db->exec("UPDATE users SET role = 2 WHERE role = 0");
-} catch (PDOException $e) {
-    echo "Error updating users table: " . $e->getMessage();
-    exit;
-}
 
-// if role is 3, set it to 0
-try {
-    $db->exec("UPDATE users SET role = 0 WHERE role = 3");
-} catch (PDOException $e) {
-    echo "Error updating users table: " . $e->getMessage();
-    exit;
+    // add tags collum to issues
+    try {
+        $db->exec("ALTER TABLE issues ADD COLUMN tags TEXT");
+    } catch (PDOException $e) {
+        echo "Error updating issues table: " . $e->getMessage();
+        exit;
+    }
+} else {
+    echo "Skipping adding tags collum to issues table\n";
 }
 
 // update the version

@@ -147,11 +147,15 @@ $db->exec("CREATE TABLE if not exists config (id INTEGER PRIMARY KEY, key TEXT, 
 if (count($db->query("SELECT * FROM config WHERE key = 'seed'")->fetchAll()) < 1) {
 	$db->exec("INSERT INTO config (key, value, entrytime) values('seed', '" . bin2hex(openssl_random_pseudo_bytes(4)) . "', '" . date("Y-m-d H:i:s") . "')");
 }
+if (count($db->query("SELECT * FROM config WHERE key = 'version'")->fetchAll()) < 1) {
+	$db->exec("INSERT INTO config (key, value, entrytime) values('version', '$VERSION', '" . date("Y-m-d H:i:s") . "')");
+}
+
 
 $issue = [];
 $comments = [];
 $status = 0;
-$tempUSERS = $db->query("SELECT id, username, email, entrytime, admin FROM users")->fetchAll();
+$tempUSERS = $db->query("SELECT id, username, email, entrytime, role FROM users")->fetchAll();
 $USERS = [];
 foreach ($tempUSERS as $user) {
 	$USERS[] = array(
@@ -159,14 +163,19 @@ foreach ($tempUSERS as $user) {
 		"id" => $user['id'], // <- added "id" for easier access to the user's id
 		"email" => $user['email'],
 		"entrytime" => $user['entrytime'],
-		"admin" => $user['admin'],
-		"gravatar" => md5($user['email'])
+		"role" => $user['role']
 	);
+	// if isset email, set gravatar
+	if ($user['email'] != '') {
+		$USERS[count($USERS) - 1]['gravatar'] = md5($user['email']);
+	} else {
+		$USERS[count($USERS) - 1]['gravatar'] = md5($user['username']);
+	}
 }
 unset($tempUSERS, $user);
 // Update Session User
 $temp = $db->query("SELECT * FROM users WHERE username='{$_SESSION['t1t']['username']}'")->fetchAll();
-$_SESSION['t1t']['admin'] = $temp[0]['admin'];
+$_SESSION['t1t']['role'] = $temp[0]['role'];
 $_SESSION['t1t']['email'] = $temp[0]['email'];
 $_SESSION['t1t']['id'] = $temp[0]['id'];
 unset($temp);
@@ -331,7 +340,7 @@ if (isset($_GET["deleteissue"])) {
 	$title = get_col($id, "issues", "title");
 
 	// only the issue creator or admin can delete issue
-	if ($_SESSION['t1t']['admin'] || $_SESSION['t1t']['username'] == get_col($id, "issues", "user")) {
+	if (isMod() || $_SESSION['t1t']['username'] == get_col($id, "issues", "user")) {
 		@$db->exec("DELETE FROM issues WHERE id='$id'");
 		@$db->exec("DELETE FROM comments WHERE issue_id='$id'");
 
@@ -470,7 +479,7 @@ if (isset($_GET["deletecomment"])) {
 	$cid = pdo_escape_string($_GET['cid']);
 
 	// only comment poster or admin can delete comment
-	if ($_SESSION['t1t']['admin'] || $_SESSION['t1t']['username'] == get_col($cid, "comments", "user"))
+	if (isMod() || $_SESSION['t1t']['username'] == get_col($cid, "comments", "user"))
 		$db->exec("DELETE FROM comments WHERE id='$cid'");
 	// log action
 	logAction('Comment deleted', 2, 'Comment with id #c' . $cid . ' deleted by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
@@ -503,21 +512,21 @@ if (isset($_POST["edituser"])) {
 			$users = $db->query("SELECT * FROM users WHERE username='$username'")->fetchAll();
 
 			// if user id is 1, dont do anything
-			if ($users[0]['id'] == 1) {
+			if ($users[0]['role'] == 5) {
 				$message = "Cannot edit admin";
 				// log action
 				logAction('Trial to edit admin', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to edit the administator account');
 			} else {
 
 				if (count($users) == 0) {
-					$query = "INSERT INTO users (username, email, admin, entrytime) values('$username','$email','$status','$now')"; // create
+					$query = "INSERT INTO users (username, email, role, entrytime) values('$username','$email','$status','$now')"; // create
 					$db->exec($query);
 					// log action
 					logAction('User created', 1, 'User created by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') with username: "' . $username . '", email: "' . $email . '", status: ' . $status);
 
 					$message = "User created";
 				} else {
-					$query = "UPDATE users SET email='$email', admin='$status' WHERE username='$username'"; // edit
+					$query = "UPDATE users SET email='$email', role='$status' WHERE username='$username'"; // edit
 					$db->exec($query);
 					// log action
 					logAction('User edited', 1, 'User with username: "' . $username . '", email: "' . $email . '", status: ' . $status . ' edited by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
@@ -546,7 +555,7 @@ if (isset($_GET["deleteuser"])) {
 		// check if user exists (same username / email)
 		$users = $db->query("SELECT * FROM users WHERE id='{$_GET['userId']}'")->fetchAll();
 		// if user is admin, do not delete
-		if ($users[0]['admin'] == 1) {
+		if ($users[0]['role'] == 5) {
 			$message = "Cannot delete admin";
 			logAction('Trial to delete admin', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to delete the administator account');
 		} else {
@@ -579,12 +588,12 @@ if (isset($_GET["banuser"])) {
 		// check if user exists (same username / email)
 		$users = $db->query("SELECT * FROM users WHERE id='$id'")->fetchAll();
 		// if user id is 1, dont do anything
-		if ($users[0]['id'] == 1) {
+		if ($users[0]['role'] == 5) {
 			logAction('Trial to ban admin', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to ban the administator account');
 			$message = "Cannot ban admin";
 		} else {
 			if (count($users) > 0) {
-				$query = "UPDATE users SET admin='3' WHERE id='$id'"; // ban
+				$query = "UPDATE users SET role='0' WHERE id='$id'"; // ban
 				$db->exec($query);
 				logAction('User banned', 2, 'User with id #u' . $id . ' was banned by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 				$message = "User banned";
@@ -615,7 +624,7 @@ if (isset($_GET["unbanuser"])) {
 		// check if user exists (same username / email)
 		$users = $db->query("SELECT * FROM users WHERE id='$id'")->fetchAll();
 		if (count($users) > 0) {
-			$query = "UPDATE users SET admin='0' WHERE id='$id'"; // unban
+			$query = "UPDATE users SET role='2' WHERE id='$id'"; // unban
 			$db->exec($query);
 			logAction('User unbanned', 2, 'User with id #u' . $id . ' was unbanned by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 			$message = "User unbanned";
@@ -623,8 +632,6 @@ if (isset($_GET["unbanuser"])) {
 			logAction('Trial to unban user', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to unban a user with id #u' . $id . ', but failed');
 			$message = "User not found";
 		}
-
-
 
 		header("Location: ?admin-panel&message=" . $message);
 	}
@@ -707,8 +714,18 @@ function isAdmin()
 	global $db;
 	$users = $db->query("SELECT * FROM users WHERE username='{$_SESSION['t1t']['username']}'")->fetchAll();
 	// update session
-	$_SESSION['t1t']['admin'] = $users[0]['admin'];
-	return $users[0]['admin'] == 1;
+	$_SESSION['t1t']['role'] = $users[0]['role'];
+	return $users[0]['role'] == 5;
+}
+
+function isMod()
+{
+	// check if user is admin in database
+	global $db;
+	$users = $db->query("SELECT * FROM users WHERE username='{$_SESSION['t1t']['username']}'")->fetchAll();
+	// update session
+	$_SESSION['t1t']['role'] = $users[0]['role'];
+	return $users[0]['role'] >= 3;
 }
 
 // check credentials, returns -1 if not okay
@@ -740,8 +757,8 @@ function check_credentials($u = false, $p = false)
 	if (count($users) == 0) return false;
 
 	$user = $users[0];
-	// if admin is 3, then this account is disabled
-	if ($user['admin'] == 3) {
+	// if role is 0, then this account is disabled
+	if ($user['role'] == 0) {
 ?>
 		<html>
 
@@ -854,7 +871,8 @@ function check_credentials($u = false, $p = false)
 		$_SESSION['t1t']['username'] = $u;
 		$_SESSION['t1t']['password'] = $p;
 		$_SESSION['t1t']['email'] = $user['email'];
-		$_SESSION['t1t']['admin'] = ($user['admin'] == 1) ? true : false;
+		// $_SESSION['t1t']['role'] = ($user['role'] == 1) ? true : false;
+		$_SESSION['t1t']['role'] = $user['role'];
 		$_SESSION['t1t']['id'] = $user['id'];
 		return true;
 	}
@@ -883,7 +901,7 @@ function check_first_time()
 	global $db;
 	global $TITLE;
 
-	$db->exec("CREATE TABLE if not exists users (id INTEGER PRIMARY KEY, username TEXT, email TEXT, password TEXT, admin INTEGER, entrytime DATETIME)");
+	$db->exec("CREATE TABLE if not exists users (id INTEGER PRIMARY KEY, username TEXT, email TEXT, password TEXT, role INTEGER, entrytime DATETIME)");
 
 	$message = "Set the first admin password";
 	if (isset($_POST["setAdminPassword"])) {
@@ -899,7 +917,7 @@ function check_first_time()
 			// check if admin exists
 			$admin = $db->query("SELECT * FROM users WHERE username='admin'")->fetchAll();
 			if (count($admin) == 0) {
-				$db->exec("INSERT INTO users (username, email, password, admin, entrytime) values('admin', '" . $email . "', '$password', 1, '" . date("Y-m-d H:i:s") . "')");
+				$db->exec("INSERT INTO users (username, email, password, role, entrytime) values('admin', '" . $email . "', '$password', 5, '" . date("Y-m-d H:i:s") . "')");
 			}
 
 			header("Location: ?");
@@ -940,7 +958,6 @@ function check_first_time()
 function showCriticalError($message, $details)
 {
 	global $TITLE;
-
 
 	$detailsJson = array_merge(array(
 		'message' => $message,
@@ -1939,7 +1956,7 @@ function insertJquery()
 			}
 
 			// if user is admin
-			if ($_SESSION['t1t']['admin'] === 1) {
+			if (isAdmin()) {
 				$style = "";
 				if (isset($_GET['admin-panel'])) {
 					$style = "font-weight: bold;";
@@ -2020,9 +2037,10 @@ function insertJquery()
 
 					Status
 					<select name="status" style="width: 100%;">
-						<option value="0">User</option>
-						<option value="1">Admin</option>
-						<option value="3">Banned</option>
+						<option value="2">User</option>
+						<option value="3">Moderator</option>
+						<option value="4">Admin</option>
+						<option value="0">Banned</option>
 					</select>
 				<?php } else { ?>
 					<label>Title</label><input type="text" style="max-width: 85vw;" size="50" name="title" id="title" value="<?php echo htmlentities((isset($issue['title']) ? $issue['title'] : '')); ?>" required />
@@ -2053,7 +2071,7 @@ function insertJquery()
 				<?php
 				if (isset($issue['id']) || $mode == "admin") {
 					// check if user is admin
-					if ($_SESSION['t1t']['admin'] == 1 || $_SESSION['t1t']['username'] === $issue['user'] || $mode == "admin") {
+					if (isAdmin() || $_SESSION['t1t']['username'] === $issue['user'] || $mode == "admin") {
 				?>
 
 						<script>
@@ -2094,10 +2112,10 @@ function insertJquery()
 
 					?>
 
-						<div class="issueItemParent" style="text-decoration: none; cursor: pointer;" data-longclick="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo ($_SESSION['t1t']['admin'] === true || $_SESSION['t1t']['username'] === $issue['user']); ?>" onmousedown="if(event.button == 1) {window.open('<?php echo $_SERVER['PHP_SELF']; ?>?id=<?php echo $issue['id']; ?>'); return false;}" onclick="if (window.getSelection().toString() == '') { 
+						<div class="issueItemParent" style="text-decoration: none; cursor: pointer;" data-longclick="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo (isMod() || $_SESSION['t1t']['username'] === $issue['user']); ?>" onmousedown="if(event.button == 1) {window.open('<?php echo $_SERVER['PHP_SELF']; ?>?id=<?php echo $issue['id']; ?>'); return false;}" onclick="if (window.getSelection().toString() == '') { 
 							window.ajaxify('<?php echo $_SERVER['PHP_SELF']; ?>?id=<?php echo $issue['id']; ?>');
 						}">
-							<div class="issueItem" data-ctx="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo ($_SESSION['t1t']['admin'] == 1 || $_SESSION['t1t']['username'] === $issue['user']); ?>">
+							<div class="issueItem" data-ctx="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo (isMod() || $_SESSION['t1t']['username'] === $issue['user']); ?>">
 								<span class="issueStatus <?php
 															if ($issue['priority'] == 1) {
 																echo 'important';
@@ -2318,7 +2336,7 @@ function insertJquery()
 											<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
 										</svg>
 									</a>
-									<?php if ($_SESSION['t1t']['admin'] || $_SESSION['t1t']['username'] == $comment['user']) : ?>
+									<?php if (isMod() || $_SESSION['t1t']['username'] == $comment['user']) : ?>
 
 										<a class="important no-text-decoration" onclick="deleteModal(this)" data-deleteUrl='<?php echo $_SERVER['PHP_SELF']; ?>?deletecomment&id=<?php echo $issue['id']; ?>&cid=<?php echo $comment['id']; ?>' title="Delete comment">
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash">
@@ -2412,23 +2430,23 @@ function insertJquery()
 					?>
 
 
-						<div class="issueItem" data-ctx="true" data-userid="<?php echo $user['id']; ?>" data-allowdelete="<?php echo ($user['username'] != $_SESSION['t1t']['username'] && $user['username'] != 'admin') ? 'true' : 'false'; ?>" data-userinfo='<?php echo json_encode($user); ?>'>
+						<div class="issueItem" data-ctx="true" data-userid="<?php echo $user['id']; ?>" data-allowdelete="<?php echo ($user['username'] != $_SESSION['t1t']['username'] && $user['role'] != 5) ? 'true' : 'false'; ?>" data-userinfo='<?php echo json_encode($user); ?>'>
 							<span class="issueStatus <?php
-														if ($user['admin'] == 3) {
+														if ($user['role'] == 0) {
 															echo 'warning';
-														} else if ($user['admin'] == 1) {
+														} else if ($user['role'] > 3) {
 															echo 'closed';
 														} else {
 															echo 'active';
 														} ?>">
 								<?php
 								// check if user has admin rights
-								if ($user['admin'] == 1) { ?>
+								if ($user['role'] > 2) { ?>
 									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-award">
 										<circle cx="12" cy="8" r="7"></circle>
 										<polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
 									</svg>
-								<?php } else if ($user['admin'] == 3) { ?>
+								<?php } else if ($user['role'] == 0) { ?>
 									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-pause">
 										<rect x="6" y="4" width="4" height="16"></rect>
 										<rect x="14" y="4" width="4" height="16"></rect>
@@ -2744,7 +2762,7 @@ function insertJquery()
 					</defs>
 					<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
 				</svg>
-				Powered by <a href="https://github.com/JMcrafter26/tiny-issue-tracker" alt="Tiny Issue Tracker" target="_blank">Tiny Issue Tracker</a><?php if ($_SESSION['t1t']['admin'] == 1) {
+				Powered by <a href="https://github.com/JMcrafter26/tiny-issue-tracker" alt="Tiny Issue Tracker" target="_blank">Tiny Issue Tracker</a><?php if (isAdmin()) {
 																																							echo ' V' . $VERSION;
 																																						} ?>
 			</div>
@@ -2988,14 +3006,14 @@ function insertJquery()
 							var userInfo = JSON.parse(isUser);
 							document.querySelector('[name="username"]').value = userInfo.username;
 							document.querySelector('[name="email"]').value = userInfo.email;
-							document.querySelector('[name="status"]').value = userInfo.admin;
+							document.querySelector('[name="status"]').value = userInfo.role;
 							document.getElementById('create').showModal();
 						};
 					} else if (ctxAction.dataset.ctxaction == 'ban') {
 						ctxAction.style.display = 'block';
 						optionCount++;
-						// check if user admin is 3, if so, change the text to unban
-						if (user.admin == 3) {
+						// check if user role is 0, if so, change the text to unban
+						if (user.role == 0) {
 							// if innerHTML contains Unban, do not replace it
 							if (!ctxAction.innerHTML.includes('Unban')) {
 								ctxAction.innerHTML = ctxAction.innerHTML.replace('Ban', 'Unban');
@@ -3097,6 +3115,10 @@ function insertJquery()
 	}
 
 	function showMobileCtxMenu(target) {
+
+		// deselect any text if selected
+		window.getSelection().removeAllRanges();
+
 		// alert('long press on ' + target.dataset.issueid);
 		// showCtxMenu(false, target.dataset.issueid, target.dataset.allowdelete);
 		var mobileCtx = document.getElementById('mobileCtxmenuTemplate');
@@ -3121,7 +3143,7 @@ function insertJquery()
 						ctxAction.onclick = function() {
 							document.querySelector('[name="username"]').value = user.username;
 							document.querySelector('[name="email"]').value = user.email;
-							document.querySelector('[name="status"]').value = user.admin;
+							document.querySelector('[name="status"]').value = user.role;
 							document.getElementById('create').showModal();
 						};
 					} else if (action == 'delete') {
@@ -3131,8 +3153,8 @@ function insertJquery()
 						};
 					} else if (action == 'ban') {
 						ctxAction.style.display = 'block';
-						// check if user admin is 3, if so, change the text to unban
-						if (user.admin == 3) {
+						// check if user role is 3, if so, change the text to unban
+						if (user.role == 0) {
 							// if innerHTML contains Unban, do not replace it
 							if (!ctxAction.innerHTML.includes('Unban')) {
 								ctxAction.innerHTML = ctxAction.innerHTML.replace('Ban', 'Unban');
@@ -3353,9 +3375,17 @@ function insertJquery()
 
 				// Set timeout
 				pressTimer = window.setTimeout(function() {
+					// e.preventDefault();
+					// e.stopPropagation();
 					showMobileCtxMenu(target);
 				}, 500);
 			});
+		});
+
+		// add event listener when user starts scrolling and stop scrolling
+		// on touchmove
+		document.addEventListener('touchmove', function() {
+			clearTimeout(pressTimer);
 		});
 
 		convertMarkdown();

@@ -9,3 +9,5 @@
 *.log
 
 inc.php
+
+/beta/old*

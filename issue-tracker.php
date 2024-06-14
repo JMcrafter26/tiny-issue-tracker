@@ -1,6 +1,6 @@
 <?php
 /*
- *      Tiny Issue Tracker v3.1
+ *      Tiny Issue Tracker v3.2
  *      SQLite based, single file Issue Tracker
  *
  *      Copyright 2010-2013 Jwalanta Shrestha <jwalanta at gmail dot com>
@@ -12,14 +12,16 @@
 // CONFIGURATION //
 ///////////////////
 
-// no display errors
-ini_set('display_errors', 0);
-error_reporting(0);
+$VERSION = 3.2;
 
+// no display errors
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 
 if (!defined("TIT_INCLUSION")) {
 	$TITLE = "My Project";              // Project Title
 	$EMAIL = "noreply@example.com";     // "From" email address for notifications
+	$SHOWFOOTER = true;
 
 	// Array of users.
 	// Mandatory fields: username, password (md5 hash)
@@ -33,7 +35,7 @@ if (!defined("TIT_INCLUSION")) {
 	// PDO Connection string ()
 	// eg, SQlite: sqlite:<filename> (Warning: if you're upgrading from an earlier version of t1t, you have to use "sqlite2"!)
 	//     MySQL: mysql:dbname=<dbname>;host=<hostname>
-	$DB_CONNECTION = "sqlite:t1t.db";
+	$DB_CONNECTION = "sqlite:tiny-issue-tracker.db";
 	$DB_USERNAME = "";
 	$DB_PASSWORD = "";
 
@@ -47,17 +49,14 @@ if (!defined("TIT_INCLUSION")) {
 
 	// Modify this issue types
 	$STATUSES = array(0 => "Active", 1 => "Resolved");
+	$obfuscateId = false;
 }
 ////////////////////////////////////////////////////////////////////////
 ////// DO NOT EDIT BEYOND THIS IF YOU DON'T KNOW WHAT YOU'RE DOING /////
 ////////////////////////////////////////////////////////////////////////
 
-// if (get_magic_quotes_gpc()){ // DEPRECATED
-
-//     if(
 foreach ($_GET  as $k => $v) $_GET[$k] = stripslashes($v);
 foreach ($_POST as $k => $v) $_POST[$k] = stripslashes($v);
-// }
 
 // Here we go...
 session_start();
@@ -76,12 +75,15 @@ if (isset($_POST["login"])) {
 
 		header("Location: ?");
 	} else {
-		 $message = "Invalid username or password";
+		$message = "Invalid username or password";
+		logAction('Login failed', 3, getIp() . ' tried to login to' . $_POST["u"] . ', but failed');
 	}
 }
 
 // check for logout
 if (isset($_GET['logout'])) {
+	logAction('User logged out', 1, 'User #u' . $_SESSION["t1t"]["id"] . ' (' . $_SESSION["t1t"]["username"] . ') logged out');
+
 	$_SESSION['t1t'] = array();  // username
 	// destroy session
 	session_destroy();
@@ -132,18 +134,26 @@ $login_html = "<html>
 // if (check_credentials() == -1) die($login_html);
 if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password']) || !check_credentials($_SESSION['t1t']['username'], $_SESSION['t1t']['password'])) {
 	check_first_time();
-	 die($login_html);
+	die($login_html);
 }
 
 // create tables if not exist
 $db->exec("CREATE TABLE if not exists issues (id INTEGER PRIMARY KEY, title TEXT, description TEXT, user TEXT, status INTEGER NOT NULL DEFAULT '0', priority INTEGER, notify_emails TEXT, entrytime DATETIME)");
-$db->exec("CREATE TABLE if not exists comments (id INTEGER PRIMARY KEY, issue_id INTEGER, user TEXT, description TEXT, entrytime DATETIME)");
+$db->exec("CREATE TABLE if not exists comments (id INTEGER PRIMARY KEY, issue_id INTEGER, user TEXT, description TEXT, tags TEXT entrytime DATETIME)");
+$db->exec("CREATE TABLE if not exists config (id INTEGER PRIMARY KEY, key TEXT, value TEXT, entrytime DATETIME)");
+
+if (count($db->query("SELECT * FROM config WHERE key = 'seed'")->fetchAll()) < 1) {
+	$db->exec("INSERT INTO config (key, value, entrytime) values('seed', '" . bin2hex(openssl_random_pseudo_bytes(4)) . "', '" . date("Y-m-d H:i:s") . "')");
+}
+if (count($db->query("SELECT * FROM config WHERE key = 'version'")->fetchAll()) < 1) {
+	$db->exec("INSERT INTO config (key, value, entrytime) values('version', '$VERSION', '" . date("Y-m-d H:i:s") . "')");
+}
 
 
 $issue = [];
 $comments = [];
 $status = 0;
-$tempUSERS = $db->query("SELECT id, username, email, entrytime, admin FROM users")->fetchAll();
+$tempUSERS = $db->query("SELECT id, username, email, entrytime, role FROM users")->fetchAll();
 $USERS = [];
 foreach ($tempUSERS as $user) {
 	$USERS[] = array(
@@ -151,14 +161,19 @@ foreach ($tempUSERS as $user) {
 		"id" => $user['id'], // <- added "id" for easier access to the user's id
 		"email" => $user['email'],
 		"entrytime" => $user['entrytime'],
-		"admin" => $user['admin'],
-		"gravatar" => md5($user['email'])
+		"role" => $user['role']
 	);
+	// if isset email, set gravatar
+	if ($user['email'] != '') {
+		$USERS[count($USERS) - 1]['gravatar'] = md5($user['email']);
+	} else {
+		$USERS[count($USERS) - 1]['gravatar'] = md5($user['username']);
+	}
 }
 unset($tempUSERS, $user);
 // Update Session User
 $temp = $db->query("SELECT * FROM users WHERE username='{$_SESSION['t1t']['username']}'")->fetchAll();
-$_SESSION['t1t']['admin'] = $temp[0]['admin'];
+$_SESSION['t1t']['role'] = $temp[0]['role'];
 $_SESSION['t1t']['email'] = $temp[0]['email'];
 $_SESSION['t1t']['id'] = $temp[0]['id'];
 unset($temp);
@@ -168,6 +183,9 @@ unset($temp);
 if (isset($_GET["id"])) {
 	// show issue #id
 	$id = pdo_escape_string($_GET['id']);
+	if ($obfuscateId) {
+		$id = deobfuscateId($id);
+	}
 	$issue = $db->query("SELECT id, title, description, user, status, priority, notify_emails, entrytime FROM issues WHERE id='$id'")->fetchAll();
 	$comments = $db->query("SELECT id, user, description, entrytime FROM comments WHERE issue_id='$id' ORDER BY entrytime ASC")->fetchAll();
 
@@ -176,45 +194,73 @@ if (isset($_GET["id"])) {
 		// add gravatar hash
 		$comments[$i]['gravatar'] = md5($USERS[array_search($comment['user'], array_column($USERS, 'username'))]['email']);
 	}
+
+	if ($obfuscateId) {
+		$issue['id'] = $id;
+	}
+
+	if (count($issue) == 0) {
+		unset($issue, $comments, $id, $_GET['id']);
+	}
 }
 
 // if no issue found, go to list mode
-if (isset($_GET['admin-area'])) {
+if (isset($_GET['admin-panel'])) {
 	// check if user is admin
-	if ($_SESSION['t1t']['admin']) {
+	if (isAdmin()) {
 		$mode = "admin";
+
+		// get config
+		$config = $db->query("SELECT * FROM config WHERE key='update_info'")->fetchAll();
+		if (count($config) > 0) {
+			$updateInfo = json_decode($config[0]['value'], true);
+		} else {
+			$updateInfo = array();
+		}
+	} else {
+		$mode = '';
 	}
+} else {
+	$mode = '';
 }
 
 if (!isset($issue) || count($issue) == 0) {
 	if ($mode != "admin") {
 
-	$status = 0;
-	if (isset($_GET["status"]))
-		$status = (int)$_GET["status"];
+		$status = 0;
+		if (isset($_GET["status"]))
+			$status = (int)$_GET["status"];
 
-	$issues = $db->query(
-		"SELECT id, title, description, user, status, priority, notify_emails, entrytime, comment_user, comment_time " .
-			" FROM issues " .
-			" LEFT JOIN (SELECT max(entrytime) as max_comment_time, issue_id FROM comments GROUP BY issue_id) AS cmax ON cmax.issue_id = issues.id" .
-			" LEFT JOIN (SELECT user AS comment_user, entrytime AS comment_time, issue_id FROM comments ORDER BY issue_id DESC, entrytime DESC) AS c ON c.issue_id = issues.id AND cmax.max_comment_time = c.comment_time" .
-			" WHERE status=" . pdo_escape_string($status ? $status : "0 or status is null") . // <- this is for legacy purposes only
-			" ORDER BY priority, entrytime DESC"
-	)->fetchAll();
+		$issues = $db->query(
+			"SELECT id, title, description, user, status, priority, notify_emails, entrytime, comment_user, comment_time " .
+				" FROM issues " .
+				" LEFT JOIN (SELECT max(entrytime) as max_comment_time, issue_id FROM comments GROUP BY issue_id) AS cmax ON cmax.issue_id = issues.id" .
+				" LEFT JOIN (SELECT user AS comment_user, entrytime AS comment_time, issue_id FROM comments ORDER BY issue_id DESC, entrytime DESC) AS c ON c.issue_id = issues.id AND cmax.max_comment_time = c.comment_time" .
+				" WHERE status=" . pdo_escape_string($status ? $status : "0 or status is null") . // <- this is for legacy purposes only
+				" ORDER BY priority, entrytime DESC"
+		)->fetchAll();
 
-	// get the comment count for each issue
-	foreach ($issues as $i => $issue) {
-		$issues[$i]['comment_count'] = $db->query("SELECT count(*) FROM comments WHERE issue_id='{$issue['id']}'")->fetchColumn();
-		
-	}
-	unset($i, $issue, $comments);
+		// get the comment count for each issue
+		foreach ($issues as $i => $issue) {
+			$issues[$i]['comment_count'] = $db->query("SELECT count(*) FROM comments WHERE issue_id='{$issue['id']}'")->fetchColumn();
+			if ($obfuscateId) {
+				$issues[$i]['id'] = obfuscateId($issue['id']);
+			}
+		}
+		unset($i, $issue, $comments);
 
-	// $issue = [];
+		// $issue = [];
 
 		$mode = "list";
 	}
 } else {
+	if (count($issue) == 0 || !isset($issue[0])) {
+		header('Location: ?');
+	}
 	$issue = $issue[0];
+	if ($obfuscateId) {
+		$issue['id'] = obfuscateId($issue['id']);
+	}
 	$issue['gravatar'] = md5($USERS[array_search($issue['user'], array_column($USERS, 'username'))]['email']);
 	$mode = "issue";
 }
@@ -227,9 +273,15 @@ if (!isset($issue) || count($issue) == 0) {
 if (isset($_POST["createissue"])) {
 
 	$id = pdo_escape_string($_POST['id']);
+	if ($obfuscateId) {
+		$id = deobfuscateId($id);
+	}
 	$title = pdo_escape_string($_POST['title']);
 	$description = pdo_escape_string($_POST['description']);
 	$priority = pdo_escape_string($_POST['priority']);
+	if (!isset($priority) || $priority == '') {
+		$priority = 2;
+	}
 	$user = pdo_escape_string($_SESSION['t1t']['username']);
 	$now = date("Y-m-d H:i:s");
 
@@ -239,6 +291,7 @@ if (isset($_POST["createissue"])) {
 		if ($USERS[$i]["email"] != '') $emails[] = $USERS[$i]["email"];
 	}
 	$notify_emails = implode(",", $emails);
+
 
 	if ($id == '')
 		$query = "INSERT INTO issues (title, description, user, priority, notify_emails, entrytime) values('$title','$description','$user','$priority','$notify_emails','$now')"; // create
@@ -250,6 +303,8 @@ if (isset($_POST["createissue"])) {
 		if ($id == '') {
 			// created
 			$id = $db->lastInsertId();
+			// log action
+			logAction('Issue created', 1, 'Issue created by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') with title: "' . $title . '", description: "' . $description . '", priority: ' . $priority);
 			if ($NOTIFY["ISSUE_CREATE"])
 				notify(
 					$id,
@@ -258,6 +313,8 @@ if (isset($_POST["createissue"])) {
 				);
 		} else {
 			// edited
+			// log action
+			logAction('Issue edited', 1, 'Issue with id #i' . $id . ' edited by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') to title: "' . $title . '", description: "' . $description . '", priority: ' . $priority);
 			if ($NOTIFY["ISSUE_EDIT"])
 				notify(
 					$id,
@@ -267,18 +324,26 @@ if (isset($_POST["createissue"])) {
 		}
 	}
 
+
 	header("Location: ?id=$id");
 }
+
 
 // Delete issue
 if (isset($_GET["deleteissue"])) {
 	$id = pdo_escape_string($_GET['id']);
+	if ($obfuscateId) {
+		$id = deobfuscateId($id);
+	}
 	$title = get_col($id, "issues", "title");
 
 	// only the issue creator or admin can delete issue
-	if ($_SESSION['t1t']['admin'] || $_SESSION['t1t']['username'] == get_col($id, "issues", "user")) {
+	if (isMod() || $_SESSION['t1t']['username'] == get_col($id, "issues", "user")) {
 		@$db->exec("DELETE FROM issues WHERE id='$id'");
 		@$db->exec("DELETE FROM comments WHERE issue_id='$id'");
+
+		// log action
+		logAction('Issue deleted', 2, 'Issue with id #i' . $id . ' deleted by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 
 		if ($NOTIFY["ISSUE_DELETE"])
 			notify(
@@ -293,8 +358,15 @@ if (isset($_GET["deleteissue"])) {
 // Change Priority
 if (isset($_GET["changepriority"])) {
 	$id = pdo_escape_string($_GET['id']);
+	if ($obfuscateId) {
+		$id = deobfuscateId($id);
+	}
 	$priority = pdo_escape_string($_GET['priority']);
 	if ($priority >= 1 && $priority <= 3) @$db->exec("UPDATE issues SET priority='$priority' WHERE id='$id'");
+
+	// log action
+	logAction('Issue priority changed', 1, 'Issue with id #i' . $id . ' priority changed to ' . $priority . ' by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
+
 
 	if ($NOTIFY["ISSUE_PRIORITY"])
 		notify(
@@ -303,14 +375,24 @@ if (isset($_GET["changepriority"])) {
 			"Issue Priority changed by {$_SESSION['t1t']['username']}\r\nTitle: " . get_col($id, "issues", "title") . "\r\nURL: http://{$_SERVER['HTTP_HOST']}{$_SERVER['PHP_SELF']}?id=$id"
 		);
 
+	if ($obfuscateId) {
+		$id = obfuscateId($id);
+	}
+
 	header("Location: {$_SERVER['PHP_SELF']}?id=$id");
 }
 
 // change status
 if (isset($_GET["changestatus"])) {
 	$id = pdo_escape_string($_GET['id']);
+	if ($obfuscateId) {
+		$id = deobfuscateId($id);
+	}
 	$status = pdo_escape_string($_GET['status']);
 	@$db->exec("UPDATE issues SET status='$status' WHERE id='$id'");
+
+	// log action
+	logAction('Issue status changed', 1, 'Issue with id #i' . $id . ' status changed to ' . $status . ' by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 
 	if ($NOTIFY["ISSUE_STATUS"])
 		notify(
@@ -319,20 +401,36 @@ if (isset($_GET["changestatus"])) {
 			"Issue marked as {$STATUSES[$status]} by {$_SESSION['u']}\r\nTitle: " . get_col($id, "issues", "title") . "\r\nURL: http://{$_SERVER['HTTP_HOST']}{$_SERVER['PHP_SELF']}?id=$id"
 		);
 
+	if ($obfuscateId) {
+		$id = obfuscateId($id);
+	}
+
 	header("Location: {$_SERVER['PHP_SELF']}?id=$id");
 }
 
 // Unwatch
 if (isset($_POST["unwatch"])) {
 	$id = pdo_escape_string($_POST['id']);
+	if ($obfuscateId) {
+		$id = deobfuscateId($id);
+	}
 	setWatch($id, false);       // remove from watch list
+	if ($obfuscateId) {
+		$id = obfuscateId($id);
+	}
 	header("Location: {$_SERVER['PHP_SELF']}?id=$id");
 }
 
 // Watch
 if (isset($_POST["watch"])) {
 	$id = pdo_escape_string($_POST['id']);
+	if ($obfuscateId) {
+		$id = deobfuscateId($id);
+	}
 	setWatch($id, true);         // add to watch list
+	if ($obfuscateId) {
+		$id = obfuscateId($id);
+	}
 	header("Location: {$_SERVER['PHP_SELF']}?id=$id");
 }
 
@@ -341,6 +439,9 @@ if (isset($_POST["watch"])) {
 if (isset($_POST["createcomment"])) {
 
 	$issue_id = pdo_escape_string($_POST['issue_id']);
+	if ($obfuscateId) {
+		$issue_id = deobfuscateId($issue_id);
+	}
 	$description = pdo_escape_string($_POST['description']);
 	$user = $_SESSION['t1t']['username'];
 	$now = date("Y-m-d H:i:s");
@@ -348,6 +449,9 @@ if (isset($_POST["createcomment"])) {
 	if (trim($description) != '') {
 		$query = "INSERT INTO comments (issue_id, description, user, entrytime) values('$issue_id','$description','$user','$now')"; // create
 		$db->exec($query);
+
+		// log action
+		logAction('Comment created', 1, 'Comment created by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') on issue #i' . $issue_id . ' with description: "' . $description . '"');
 	}
 
 	if ($NOTIFY["COMMENT_CREATE"])
@@ -357,18 +461,31 @@ if (isset($_POST["createcomment"])) {
 			"New comment posted by {$user}\r\nTitle: " . get_col($id, "issues", "title") . "\r\nURL: http://{$_SERVER['HTTP_HOST']}{$_SERVER['PHP_SELF']}?id=$issue_id"
 		);
 
+	if ($obfuscateId) {
+		$issue_id = obfuscateId($issue_id);
+	}
+
 	header("Location: {$_SERVER['PHP_SELF']}?id=$issue_id");
 }
 
 // Delete Comment
 if (isset($_GET["deletecomment"])) {
 	$id = pdo_escape_string($_GET['id']);
+	if ($obfuscateId) {
+		$id = deobfuscateId($id);
+	}
 	$cid = pdo_escape_string($_GET['cid']);
 
 	// only comment poster or admin can delete comment
-	if ($_SESSION['t1t']['admin'] || $_SESSION['t1t']['username'] == get_col($cid, "comments", "user"))
+	if (isMod() || $_SESSION['t1t']['username'] == get_col($cid, "comments", "user"))
 		$db->exec("DELETE FROM comments WHERE id='$cid'");
+	// log action
+	logAction('Comment deleted', 2, 'Comment with id #c' . $cid . ' deleted by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 
+
+	if ($obfuscateId) {
+		$id = obfuscateId($id);
+	}
 	header("Location: {$_SERVER['PHP_SELF']}?id=$id");
 }
 
@@ -379,7 +496,7 @@ if (isset($_POST["edituser"])) {
 		$mode = "admin";
 
 
-		if (isset($_POST["username"]) && isset($_POST["email"]) && isset($_POST["status"])) {
+		if (isset($_POST["username"]) && $_POST['username'] != '' && isset($_POST["email"]) && isset($_POST["status"])) {
 			$username = pdo_escape_string($_POST['username']);
 			$username = strtolower($username);
 			$email = pdo_escape_string($_POST['email']);
@@ -393,24 +510,32 @@ if (isset($_POST["edituser"])) {
 			$users = $db->query("SELECT * FROM users WHERE username='$username'")->fetchAll();
 
 			// if user id is 1, dont do anything
-			if ($users[0]['id'] == 1) {
+			if ($users[0]['role'] == 5) {
 				$message = "Cannot edit admin";
+				// log action
+				logAction('Trial to edit admin', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to edit the administator account');
 			} else {
 
-			if (count($users) == 0) {
-				$query = "INSERT INTO users (username, email, admin, entrytime) values('$username','$email','$status','$now')"; // create
-				$db->exec($query);
-				$message = "User created";
-			} else {
-				$query = "UPDATE users SET email='$email', admin='$status' WHERE username='$username'"; // edit
-				$db->exec($query);
-				$message = "User updated";
+				if (count($users) == 0) {
+					$query = "INSERT INTO users (username, email, role, entrytime) values('$username','$email','$status','$now')"; // create
+					$db->exec($query);
+					// log action
+					logAction('User created', 1, 'User created by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') with username: "' . $username . '", email: "' . $email . '", status: ' . $status);
+
+					$message = "User created";
+				} else {
+					$query = "UPDATE users SET email='$email', role='$status' WHERE username='$username'"; // edit
+					$db->exec($query);
+					// log action
+					logAction('User edited', 1, 'User with username: "' . $username . '", email: "' . $email . '", status: ' . $status . ' edited by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
+
+					$message = "User updated";
+				}
 			}
-		}
 
 			// die($message);
 
-			header("Location: ?admin-area&message=" . $message);
+			header("Location: ?admin-panel&message=" . $message);
 		}
 	}
 }
@@ -418,92 +543,131 @@ if (isset($_POST["edituser"])) {
 // Delete User
 if (isset($_GET["deleteuser"])) {
 	// check if user is admin
-	if (isAdmin() && isset($_GET["id"])) {
+	if (isAdmin() && isset($_GET["userId"])) {
 		$mode = "admin";
 
 
-		if (isset($_GET["id"])) {
-			$now = date("Y-m-d H:i:s");
 
-			// check if user exists (same username / email)
-			$users = $db->query("SELECT * FROM users WHERE id='{$_GET['id']}'")->fetchAll();
-			// if user is admin, do not delete
-			if ($users[0]['admin'] == 1) {
-				$message = "Cannot delete admin";
-			} else {
+		$now = date("Y-m-d H:i:s");
+
+		// check if user exists (same username / email)
+		$users = $db->query("SELECT * FROM users WHERE id='{$_GET['userId']}'")->fetchAll();
+		// if user is admin, do not delete
+		if ($users[0]['role'] == 5) {
+			$message = "Cannot delete admin";
+			logAction('Trial to delete admin', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to delete the administator account');
+		} else {
 			if (count($users) > 0) {
-				$query = "DELETE FROM users WHERE id='{$_GET['id']}'"; // delete
+				$query = "DELETE FROM users WHERE id='{$_GET['userId']}'"; // delete
 				$db->exec($query);
+				logAction('User deleted', 4, 'User with id #u' . $_GET['userId'] . ' was deleted by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 				$message = "User deleted";
 			} else {
+				logAction('Trial to delete user', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to delete a user with id #u' . $_GET['userId'] . ', but failed');
 				$message = "User not found";
 			}
 		}
 
-			header("Location: ?admin-area&message=" . $message);
-		}
+		header("Location: ?admin-panel&message=" . $message);
 	}
 }
 
 // Ban User
 if (isset($_GET["banuser"])) {
 	// check if user is admin
-	if (isAdmin() && isset($_GET["id"])) {
+	if (isAdmin() && isset($_GET['userId'])) {
 		$mode = "admin";
 
 
-		if (isset($_GET["id"])) {
-			$id = pdo_escape_string($_GET['id']);
-			$now = date("Y-m-d H:i:s");
 
-			// check if user exists (same username / email)
-			$users = $db->query("SELECT * FROM users WHERE id='$id'")->fetchAll();
-			// if user id is 1, dont do anything
-			if ($users[0]['id'] == 1) {
-				$message = "Cannot ban admin";
-			} else {
+		$id = pdo_escape_string($_GET['userId']);
+		$now = date("Y-m-d H:i:s");
+
+		// check if user exists (same username / email)
+		$users = $db->query("SELECT * FROM users WHERE id='$id'")->fetchAll();
+		// if user id is 1, dont do anything
+		if ($users[0]['role'] == 5) {
+			logAction('Trial to ban admin', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to ban the administator account');
+			$message = "Cannot ban admin";
+		} else {
 			if (count($users) > 0) {
-				$query = "UPDATE users SET admin='3' WHERE id='$id'"; // ban
+				$query = "UPDATE users SET role='0' WHERE id='$id'"; // ban
 				$db->exec($query);
+				logAction('User banned', 2, 'User with id #u' . $id . ' was banned by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 				$message = "User banned";
 			} else {
+				logAction('Trial to ban user', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to ban a user with id #u' . $id . ', but failed');
 				$message = "User not found";
 			}
 		}
 
-			header("Location: ?admin-area&message=" . $message);
-		}
+		header("Location: ?admin-panel&message=" . $message);
 	}
 }
 
 
 // Unban User
 if (isset($_GET["unbanuser"])) {
+
 	// check if user is admin
-	if (isAdmin() && isset($_GET["id"])) {
+	if (isAdmin() && isset($_GET["userId"])) {
 		$mode = "admin";
 
 
-		if (isset($_GET["id"])) {
-			$id = pdo_escape_string($_GET['id']);
-			$now = date("Y-m-d H:i:s");
 
-			// check if user exists (same username / email)
-			$users = $db->query("SELECT * FROM users WHERE id='$id'")->fetchAll();
-			if (count($users) > 0) {
-				$query = "UPDATE users SET admin='0' WHERE id='$id'"; // unban
-				$db->exec($query);
-				$message = "User unbanned";
-			} else {
-				$message = "User not found";
-			}
+		$id = pdo_escape_string($_GET['userId']);
+		$now = date("Y-m-d H:i:s");
 
-			header("Location: ?admin-area&message=" . $message);
+
+		// check if user exists (same username / email)
+		$users = $db->query("SELECT * FROM users WHERE id='$id'")->fetchAll();
+		if (count($users) > 0) {
+			$query = "UPDATE users SET role='2' WHERE id='$id'"; // unban
+			$db->exec($query);
+			logAction('User unbanned', 2, 'User with id #u' . $id . ' was unbanned by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
+			$message = "User unbanned";
+		} else {
+			logAction('Trial to unban user', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to unban a user with id #u' . $id . ', but failed');
+			$message = "User not found";
 		}
+
+		header("Location: ?admin-panel&message=" . $message);
 	}
 }
 
-if(isset($_GET['message'])) {
+if (isset($_GET["getupdateinfo"]) && isAdmin()) {
+	try {
+		$updateInfo = json_decode(file_get_contents("https://raw.githack.com/JMcrafter26/tiny-issue-tracker/main/version.json"), true);
+	} catch (Exception $e) {
+		$message += "Error getting update info";
+	}
+
+	$updateInfo['current_version'] = $VERSION;
+	$updateInfo['time'] = date("Y-m-d H:i:s");
+
+	// save update info to db
+	// if exists in db table config
+	$updates = $db->query("SELECT * FROM config WHERE key='update_info'")->fetchAll();
+	if (count($updates) > 0) {
+		$db->exec("UPDATE config SET value='" . json_encode($updateInfo) . "' WHERE key='update_info'");
+	} else {
+		$db->exec("INSERT INTO config (key, value, entrytime) values('update_info', '" . json_encode($updateInfo) . "', '" . date("Y-m-d H:i:s") . "')");
+	}
+
+	if (!isset($_GET['admin-panel'])) {
+		header("Location: ?admin-panel&message=" . $message);
+	}
+}
+
+if (isset($_GET["clearlogs"]) && isAdmin()) {
+	$db->exec("DELETE FROM logs");
+	logAction('Logs cleared', 3, 'Logs cleared by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
+	header("Location: ?admin-panel&message=Logs cleared");
+}
+
+
+
+if (isset($_GET['message'])) {
 	$message = $_GET['message'];
 }
 
@@ -520,13 +684,46 @@ function pdo_escape_string($str)
 	return ($db->quote("") == "''") ? substr($quoted, 1, strlen($quoted) - 2) : $quoted;
 }
 
-function isAdmin() {
+function logAction($action, $priority = 1, $details = "")
+{
+	// priority 1-5
+	global $db;
+	$now = date("Y-m-d H:i:s");
+
+	if (isset($_SESSION['t1t']['id'])) {
+		$userId = $_SESSION['t1t']['id'];
+	} else {
+		$userId = '';
+	}
+	$db->exec("CREATE TABLE if not exists logs (id INTEGER PRIMARY KEY, user_id INTEGER, action TEXT, details TEXT, priority INTEGER, entrytime DATETIME)");
+
+
+	if (!isset($action) || !isset($userId)) {
+
+		$db->exec("INSERT INTO logs (user_id, action, details, priority, entrytime) values('0', 'Could not log action: Invalid action/userid', '', '4','$now')");
+	} else {
+		$db->exec("INSERT INTO logs (user_id, action, details, priority, entrytime) values('$userId', '$action', '$details', '$priority','$now')");
+	}
+}
+
+function isAdmin()
+{
 	// check if user is admin in database
 	global $db;
 	$users = $db->query("SELECT * FROM users WHERE username='{$_SESSION['t1t']['username']}'")->fetchAll();
 	// update session
-	$_SESSION['t1t']['admin'] = $users[0]['admin'];
-	return $users[0]['admin'] == 1;
+	$_SESSION['t1t']['role'] = $users[0]['role'];
+	return $users[0]['role'] == 5;
+}
+
+function isMod()
+{
+	// check if user is admin in database
+	global $db;
+	$users = $db->query("SELECT * FROM users WHERE username='{$_SESSION['t1t']['username']}'")->fetchAll();
+	// update session
+	$_SESSION['t1t']['role'] = $users[0]['role'];
+	return $users[0]['role'] >= 3;
 }
 
 // check credentials, returns -1 if not okay
@@ -542,104 +739,167 @@ function check_credentials($u = false, $p = false)
 
 	if ($u == '' || $p == '' || !isset($u) || !isset($p) || !$u || !$p) return false;
 
-	$users = $db->query("SELECT * FROM users WHERE username='$u'")->fetchAll();
+	try {
+		$users = $db->query("SELECT * FROM users WHERE username='$u'")->fetchAll();
+	} catch (Exception $e) {
+		// collect error info
+		$error = array(
+			"error" => $e->getMessage(),
+			"line" => $e->getLine(),
+			"file" => $e->getFile(),
+			"trace" => $e->getTraceAsString()
+		);
+		showCriticalError("Database error", $error);
+		die();
+	}
 	if (count($users) == 0) return false;
 
 	$user = $users[0];
-	// if admin is 3, then this account is disabled
-	if ($user['admin'] == 3) {
-		$disabled = "<html>
+	// if role is 0, then this account is disabled
+	if ($user['role'] == 0) {
+?>
+		<html>
+
 		<head>
 			<title>Tiny Issue Tracker</title>
 			<meta name='viewport' content='width=device-width, initial-scale=1'>
 			<style>
-			" . insertCss() . "
-			.container {
-				display: flex;
-				justify-content: center;
-			}
-				hr {
-				margin-top: 10vh;
-				margin-bottom: 10vh;
-			}
-			label{display:block;}
-			body {text-align:center;}
-			form input {width: 100%; font-family:sans-serif;font-size:11px;}
-			form {
-				border: 1px solid var(--border-color);
-				border-radius: 15px;
-				padding: 10px;
-				width: 250px;
-			}
-			.alert {
-				margin: auto;
-				background-color: #f85149;
-				color: white;
-				padding: 8px;
-				border-radius: 15px;
-				width: 300px;
-				text-align: center;
-				display: flex;
-				justify-content: center;
-				align-items: center;
-			}
-
-			@media only screen and (max-width: 600px) {
-				form {
-					width: 100%;
+				<?php echo insertCss(); ?>.container {
+					display: flex;
+					justify-content: center;
 				}
-			}
+
+				hr {
+					margin-top: 10vh;
+					margin-bottom: 10vh;
+				}
+
+				label {
+					display: block;
+				}
+
+				body {
+					text-align: center;
+				}
+
+				form input {
+					width: 100%;
+					font-family: sans-serif;
+					font-size: 11px;
+				}
+
+				form {
+					border: 1px solid var(--border-color);
+					border-radius: 15px;
+					padding: 10px;
+					width: 250px;
+				}
+
+				.alert {
+					margin: auto;
+					background-color: #f85149;
+					color: white;
+					padding: 8px;
+					border-radius: 15px;
+					width: 300px;
+					text-align: center;
+					display: flex;
+					justify-content: center;
+					align-items: center;
+				}
+
+				@media only screen and (max-width: 600px) {
+					form {
+						width: 100%;
+					}
+				}
 			</style>
 		</head>
-								 <body>
-									<h2>$TITLE - Issue Tracker</h2>
-									<br>
-									<br>
 
-									<div class='alert'>
-									<h2>This account is disabled</h2>
-									</div>
-									<p>This account was disabled by the administrator.<br> If you think this is a mistake, please contact the administrator.</p>
-									<hr>
-									<h3>Login as another user</h3>
-									<div class='container'>
-									<form method='POST' action='" . $_SERVER["REQUEST_URI"] . "'>
-									<label>Username</label><input type='text' name='u' />
-								 <label>Password</label><input type='password' name='p' />
-								 <label></label><input type='submit' name='login' value='Login' />
-								 </form>
+		<body>
+			<h2><?php echo $TITLE; ?> - Issue Tracker</h2>
+			<br>
+			<br>
+			<div class='alert'>
+				<h2>This account is disabled</h2>
+			</div>
+			<p>This account was disabled by the administrator.<br> If you think this is a mistake, please contact the administrator.</p>
+			<hr>
+			<h3>Login as another user</h3>
+			<div class='container'>
+				<form method='POST' action='" . $_SERVER["REQUEST_URI"] . "'>
+					<label>Username</label><input type='text' name='u' />
+					<label>Password</label><input type='password' name='p' />
+					<label></label><input type='submit' name='login' value='Login' />
+				</form>
+			</div>
+			<script>
+				if (!window.msgShown) {
+					window.msgShown = !0;
+					let e = ["background: #fedd48", "color: #333", "padding: 10px 20px", "font-size: 16px", "line-height: 1.6", "border-radius: 12px", 'font-family: "Arial", sans-serif', "white-space: pre-line"].join(";");
+					console.log("\n%cPowered by Tiny Issue Tracker", e, '\n\nThe source code is freely available at\nhttps://github.com/JMcrafter26/tiny-issue-tracker\n\nFeel free to check it out and contribute.\nIf you have any questions, feel free to ask me on GitHub. "easterEgg()"'), window.easterEgg = function() {
+						console.log("You found the easter egg! 🥚\n\nYou can be proud of yourself ;)"), setTimeout(function() {
+							window.open("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "_blank")
+						}, 3e3)
+					}
+				}
+			</script>
+		</body>
 
-								 </div></body></html>";
-		die($disabled);
+		</html>
+	<?php
+		die();
 	}
 
-	if(!isset($user['password']) || $user['password'] == '' || $user['password'] == null) {
+	if (!isset($user['password']) || $user['password'] == '' || $user['password'] == null) {
 		// check if user has no password, if so, set it to the new password
 		$userPassword = password_hash($p, PASSWORD_DEFAULT);
 		$db->exec("UPDATE users SET password='" . $userPassword . "' WHERE username='$u'");
 		$user['password'] = $userPassword;
 		unset($userPassword);
+		logAction('Password set', 1, 'Password set for user with username: "' . $u . '" by #u' . $user['id'] . ' (' . $user['username'] . ')');
 	}
 
 	if (password_verify($p, $user['password'])) {
+		if (isset($_SESSION['t1t'])) {
+			unset($_SESSION['t1t']);
+		} else {
+			logAction('Login', 1, 'IP ' . getIp() . ' logged in as ' . $u);
+		}
 		$_SESSION['t1t']['username'] = $u;
 		$_SESSION['t1t']['password'] = $p;
 		$_SESSION['t1t']['email'] = $user['email'];
-		$_SESSION['t1t']['admin'] = ($user['admin'] == 1)? true : false;
+		// $_SESSION['t1t']['role'] = ($user['role'] == 1) ? true : false;
+		$_SESSION['t1t']['role'] = $user['role'];
+		$_SESSION['t1t']['id'] = $user['id'];
 		return true;
 	}
 
-	
+
 
 
 	return false;
 }
 
-function check_first_time() {
+function getIp()
+{
+	// get the user's ip
+	if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
+		$ip = $_SERVER['HTTP_CLIENT_IP'];
+	} elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+		$ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+	} else {
+		$ip = $_SERVER['REMOTE_ADDR'];
+	}
+	return $ip;
+}
+
+function check_first_time()
+{
 	global $db;
 	global $TITLE;
 
-	$db->exec("CREATE TABLE if not exists users (id INTEGER PRIMARY KEY, username TEXT, email TEXT, password TEXT, admin INTEGER, entrytime DATETIME)");
+	$db->exec("CREATE TABLE if not exists users (id INTEGER PRIMARY KEY, username TEXT, email TEXT, password TEXT, role INTEGER, entrytime DATETIME)");
 
 	$message = "Set the first admin password";
 	if (isset($_POST["setAdminPassword"])) {
@@ -652,18 +912,18 @@ function check_first_time() {
 			$password = $_POST["password"];
 			$password = password_hash($password, PASSWORD_DEFAULT);
 
-				// check if admin exists
-				$admin = $db->query("SELECT * FROM users WHERE username='admin'")->fetchAll();
-				if (count($admin) == 0) {
-					$db->exec("INSERT INTO users (username, email, password, admin, entrytime) values('admin', '" . $email . "', '$password', 1, '" . date("Y-m-d H:i:s") . "')");
-				}
+			// check if admin exists
+			$admin = $db->query("SELECT * FROM users WHERE username='admin'")->fetchAll();
+			if (count($admin) == 0) {
+				$db->exec("INSERT INTO users (username, email, password, role, entrytime) values('admin', '" . $email . "', '$password', 5, '" . date("Y-m-d H:i:s") . "')");
+			}
 
-				header("Location: ?");
+			header("Location: ?");
 		}
 	}
-	
+
 	$admin = $db->query("SELECT * FROM users WHERE username='admin'")->fetchAll();
-	if(count($admin) == 0) {
+	if (count($admin) == 0) {
 		$firstAdminPassword = "<html>
 		<head>
 			<title>Tiny Issue Tracker</title>
@@ -683,7 +943,7 @@ function check_first_time() {
 								 <body>
 									<h2>$TITLE - Issue Tracker</h2><p>$message</p>
 									<div class='container'>
-									<form method='POST' action='" . $_SERVER["REQUEST_URI"] . "'>
+									<form method='POST' action='?admin-panel'>
 									<label>Username</label><input type='text' value='admin' readonly />
 									<label>Email</label><input type='email' name='email' />
 								 <label>Password</label><input type='password' name='password' />
@@ -691,6 +951,129 @@ function check_first_time() {
 								 </form></div></body></html>";
 		die($firstAdminPassword);
 	}
+}
+
+function showCriticalError($message, $details)
+{
+	global $TITLE;
+
+	$detailsJson = array_merge(array(
+		'message' => $message,
+		'server' => $_SERVER,
+		'request' => $_REQUEST,
+		'time' => date('Y-m-d H:i:s'),
+	), $details);
+
+	// try to save the details to log file
+	try {
+		$logfile = fopen('tiny-issue-tracker-error.log', 'a');
+		fwrite($logfile, json_encode($details) . "\n");
+		fclose($logfile);
+	} catch (Exception $e) {
+		// 
+	}
+
+	if (isset($details['error'])) {
+		// if it contains an email, censor it
+		if (strpos($details['error'], '@') !== false) {
+			// using regex to find email
+			$details['error'] = preg_replace('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/', 'email', $details['error']);
+		}
+		// if it contains a password, censor it
+		if (strpos($details['error'], 'pass') !== false) {
+			$details['error'] = preg_replace('/pass .*/', 'password: ********', $details['error']);
+		}
+	}
+
+	// show critical error
+	?>
+	<html>
+
+	<head>
+		<title>Tiny Issue Tracker</title>
+		<meta name='viewport' content='width=device-width, initial-scale=1'>
+		<style>
+			<?php echo insertCss(); ?>.container {
+				display: flex;
+				justify-content: center;
+			}
+
+			body {
+				text-align: center;
+			}
+
+			details>summary {
+				list-style: none;
+			}
+
+			details {
+				padding-top: 0;
+			}
+
+			details>summary::-webkit-details-marker {
+				display: none;
+			}
+
+			.alert {
+				margin: auto;
+				background-color: #f85149;
+				color: white;
+				padding: 8px;
+				border-radius: 15px;
+				width: 300px;
+				text-align: center;
+				/* display: flex; */
+				justify-content: center;
+				/* align-items: center; */
+			}
+		</style>
+	</head>
+
+	<body>
+		<h2><?php echo $TITLE; ?> - Issue Tracker</h2>
+		<br>
+		<br>
+
+		<div class='alert'>
+			<h2>:(</h2>
+			<h2>An error occurred</h2>
+		</div>
+		<br>
+		<div>
+			<h3>What to do now?</h3>
+			<hr>
+			<details open>
+				<summary>
+					<h3>As a user</h3>
+				</summary>
+				<p>Contact the administrator and try again later</p>
+				<p>You can also try to <a href='javascript:window.location.reload()'>reload the page</a> or <a href='?logout'>logout</a></p>
+			</details>
+			<details>
+				<summary>
+					<h3>As an System Administrator</h3>
+				</summary>
+				<p>Something went wrong. Here are some details:</p>
+				<p><?php echo $message; ?><br><?php echo $details['error']; ?></p>
+				<p>More details are available in the log file located in the same directory as the script.</p>
+			</details>
+		</div>
+		<script>
+			if (!window.msgShown) {
+				window.msgShown = !0;
+				let e = ["background: #fedd48", "color: #333", "padding: 10px 20px", "font-size: 16px", "line-height: 1.6", "border-radius: 12px", 'font-family: "Arial", sans-serif', "white-space: pre-line"].join(";");
+				console.log("\n%cPowered by Tiny Issue Tracker", e, '\n\nThe source code is freely available at\nhttps://github.com/JMcrafter26/tiny-issue-tracker\n\nFeel free to check it out and contribute.\nIf you have any questions, feel free to ask me on GitHub. "easterEgg()"'), window.easterEgg = function() {
+					console.log("You found the easter egg! 🥚\n\nYou can be proud of yourself ;)"), setTimeout(function() {
+						window.open("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "_blank")
+					}, 3e3)
+				}
+			}
+		</script>
+	</body>
+
+	</html>
+<?php
+	die();
 }
 
 // get column from some table with $id
@@ -716,7 +1099,7 @@ function notify($id, $subject, $body)
 		$headers = "From: $EMAIL" . "\r\n" . 'X-Mailer: PHP/' . phpversion();
 
 		try {
-			mail($to, $subject, $body, $headers);   
+			// mail($to, $subject, $body, $headers);   
 
 			/* $ch = curl_init();
 
@@ -765,6 +1148,14 @@ function setWatch($id, $addToWatch)
 	$notify_emails = implode(",", $emails);
 
 	$db->exec("UPDATE issues SET notify_emails='$notify_emails' WHERE id='$id'");
+
+	if ($addToWatch) {
+		// log action
+		logAction('Issue watched', 1, 'Issue with id #i' . $id . ' watched by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
+	} else {
+		// log action
+		logAction('Issue unwatched', 1, 'Issue with id #i' . $id . ' unwatched by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
+	}
 }
 
 function timeToString($time)
@@ -797,6 +1188,50 @@ function timeToString($time)
 	}
 	return $timeAgo;
 }
+
+function getObfuscationSalt()
+{
+	global $db;
+	$OBFUSCATION_SALT = $db->query("SELECT value FROM config WHERE key = 'seed'")->fetchAll()[0]['value'];
+	$OBFUSCATION_SALT = intval($OBFUSCATION_SALT);
+
+	return isset($OBFUSCATION_SALT) ? $OBFUSCATION_SALT : 0;
+}
+function obfdeobf($id, $dec)
+{
+	$salt = getObfuscationSalt() & 0xFFFFFFFF;
+	$id &= 0xFFFFFFFF;
+	if ($dec) {
+		$id ^= $salt;
+		$id = (($id & 0xAAAAAAAA) >> 1) | ($id & 0x55555555) << 1;
+		$id = (($id & 0x0000FFFF) << 16) | (($id & 0xFFFF0000) >> 16);
+
+		return $id;
+	}
+
+	$id = (($id & 0x0000FFFF) << 16) | (($id & 0xFFFF0000) >> 16);
+	$id = (($id & 0xAAAAAAAA) >> 1) | ($id & 0x55555555) << 1;
+
+	return $id ^ $salt;
+}
+function obfuscateId($id)
+{
+	$id = str_pad(base_convert(obfdeobf($id + 1, false), 10, 36), 7, 0, STR_PAD_LEFT);
+	if (substr($id, 0, 2) == '00') {
+		$id = substr($id, 2);
+	}
+	return $id;
+}
+function deobfuscateId($id)
+{
+	if (strlen((string)$id) == 5) {
+		$id = '00' . $id;
+	}
+
+	$id = obfdeobf(base_convert($id, 36, 10), true) - 1;
+	return $id;
+}
+
 
 function getUrl()
 {
@@ -1237,6 +1672,82 @@ function insertJquery()
 				transform: rotate(360deg);
 			}
 		}
+
+		.settingContainer {
+			padding: 10px;
+			margin-top: 20px;
+			border-radius: 15px;
+			border: 1px solid var(--border);
+		}
+
+		.tips {
+			padding: 10px 5px 5px 20px;
+			border-radius: 15px;
+			border: 1px solid var(--border);
+			background: var(--background-alt);
+			width: 300px;
+			/* shadow */
+			box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+
+			/* float over the display */
+			position: absolute;
+			bottom: 10px;
+			right: 10px;
+			position: fixed;
+		}
+
+		/* on mobile, set width 100% */
+		@media (max-width: 600px) {
+			.tips {
+				width: 90%;
+				/* center the tips */
+				left: 50%;
+				transform: translateX(-50%);
+
+			}
+		}
+
+		.tips h2 {
+			margin-top: 0;
+			margin-bottom: 0;
+		}
+
+		.tips button {
+			background: var(--button-base);
+			color: var(--text-main);
+			border: none;
+			border-radius: 6px;
+			padding: 0.6rem 2rem;
+			cursor: pointer;
+			text-decoration: none;
+		}
+
+		.closeTips {
+			background-color: transparent;
+			border: none;
+			border-radius: 50%;
+			padding: 10px;
+			width: 1em;
+			height: 1em;
+			cursor: pointer;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+		}
+
+		.closeTips:hover {
+			background-color: var(--button-hover);
+		}
+
+		.tip {
+			display: none;
+			margin-top: 0;
+			height: 3rem;
+		}
+
+		.tip.active {
+			display: block;
+		}
 	</style>
 
 	<script>
@@ -1426,26 +1937,32 @@ function insertJquery()
 		<div id="menu">
 			<?php
 			foreach ($STATUSES as $code => $name) {
-				if (isset($_GET['status']) && $_GET['status'] == $code || (isset($issue) && $issue['status'] == $code) && !isset($_GET['admin-area'])) {
+				if (!isset($issue['status'])) {
+					$issue['status'] = '';
+				}
+
+
+				if (isset($_GET['status']) && $_GET['status'] == $code || (isset($issue) && $issue['status'] == $code) && !isset($_GET['admin-panel'])) {
 					$style = "style='font-weight: bold;'";
-				} else if (!isset($_GET['status']) && !isset($issue) && $code == 0 && !isset($_GET['admin-area'])) {
+				} else if (!isset($_GET['status']) && !isset($issue) && $code == 0 && !isset($_GET['admin-panel'])) {
 					$style = "style='font-weight: bold;'";
 				} else {
 					$style = "";
 				}
+
 				echo "<a href='{$_SERVER['PHP_SELF']}?status={$code}' alt='{$name} Issues' $style>{$name} Issues</a> | ";
 			}
 
 			// if user is admin
-			if ($_SESSION['t1t']['admin'] === 1) {
+			if (isAdmin()) {
 				$style = "";
-				if (isset($_GET['admin-area'])) {
+				if (isset($_GET['admin-panel'])) {
 					$style = "font-weight: bold;";
 				}
-				echo "<a href='{$_SERVER['PHP_SELF']}?admin-area' alt='Admin Area' style='color: #f85149;$style'>Admin Area</a> | ";
+				echo "<a href='{$_SERVER['PHP_SELF']}?admin-panel' alt='Admin Panel' style='color: #f85149;$style'>Admin Panel</a> | ";
 			}
 			?>
-			<a href="<?php echo $_SERVER['PHP_SELF']; ?>?logout" alt="Logout" target="_self">
+			<a href="?logout" alt="Logout" target="_self">
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-log-out">
 					<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
 					<polyline points="16 17 21 12 16 7"></polyline>
@@ -1470,6 +1987,34 @@ function insertJquery()
 				echo 'Edit';
 			} ?>
 		</button>
+
+		<div class="hide tips">
+			<div class="between">
+				<h2>Tip <span class="tipNumber">1</span></h2>
+				<a class="closeTips" id="closeTips">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-x">
+						<line x1="18" y1="6" x2="6" y2="18"></line>
+						<line x1="6" y1="6" x2="18" y2="18"></line>
+					</svg>
+				</a>
+			</div>
+			<p class="tip" data-tip="1">Use right-click (long-click on mobile) on an item to use quick actions.</p>
+			<p class="tip" data-tip="2">You can use Markdown in the description and comments. <a href="https://gist.github.com/JMcrafter26/b6428ddeb6cd40e3fc99ff6df74ff707#file-edited-markdown-cheat-sheet-md" target="_blank">Markdown Cheatsheet</a></p>
+			<p class="tip" data-tip="3">Use the search bar to find issues.</p>
+			<p class="tip" data-tip="4">You can set your profile picture by using <a href="https://en.gravatar.com/" target="_blank">Gravatar</a>.</p>
+
+			<button id="prevTip">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-left">
+					<polyline points="15 18 9 12 15 6"></polyline>
+				</svg>
+			</button>
+			<button id="nextTip">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-chevron-right">
+					<polyline points="9 18 15 12 9 6"></polyline>
+				</svg>
+			</button>
+		</div>
+
 		<dialog id="create" style="max-width: 90%;">
 			<form method="POST" style="position: relative;" onsubmit="
 				showLoader(this);
@@ -1490,15 +2035,16 @@ function insertJquery()
 
 					Status
 					<select name="status" style="width: 100%;">
-						<option value="0">User</option>
-						<option value="1">Admin</option>
-						<option value="3">Banned</option>
+						<option value="2">User</option>
+						<option value="3">Moderator</option>
+						<option value="4">Admin</option>
+						<option value="0">Banned</option>
 					</select>
 				<?php } else { ?>
 					<label>Title</label><input type="text" style="max-width: 85vw;" size="50" name="title" id="title" value="<?php echo htmlentities((isset($issue['title']) ? $issue['title'] : '')); ?>" required />
 					<label>Description</label><textarea style="max-width: 90vw;" name="description" rows="5" cols="50"><?php echo htmlentities((isset($issue['description']) ? $issue['description'] : '')); ?></textarea>
 
-					<?php if (!isset($_GET['id']) && $_GET['id'] != '') { ?>
+					<?php if (!isset($_GET['id']) || $_GET['id'] == '') { ?>
 						Priority
 						<select name="priority" style="width: 100%;">
 							<option value="1">High</option>
@@ -1523,11 +2069,11 @@ function insertJquery()
 				<?php
 				if (isset($issue['id']) || $mode == "admin") {
 					// check if user is admin
-					if ($_SESSION['t1t']['admin'] == 1 || $_SESSION['t1t']['username'] === $issue['user'] || $mode == "admin") {
+					if (isAdmin() || $_SESSION['t1t']['username'] === $issue['user'] || $mode == "admin") {
 				?>
 
 						<script>
-						var elementId123 = '<?php echo $mode == "admin" ? "confirmDelete" : "confirmDeleteButton"; ?>';
+							var elementId123 = '<?php echo $mode == "admin" ? "confirmDelete" : "confirmDeleteButton"; ?>';
 						</script>
 
 						<button onclick="document.getElementById(elementId123).showModal();" style="background-color: #f85149;">Delete</button>
@@ -1564,10 +2110,10 @@ function insertJquery()
 
 					?>
 
-						<div class="issueItemParent" style="text-decoration: none; cursor: pointer;" data-longclick="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo ($_SESSION['t1t']['admin'] === true || $_SESSION['t1t']['username'] === $issue['user']); ?>" onmousedown="if(event.button == 1) {window.open('<?php echo $_SERVER['PHP_SELF']; ?>?id=<?php echo $issue['id']; ?>'); return false;}" onclick="if (window.getSelection().toString() == '') { 
+						<div class="issueItemParent" style="text-decoration: none; cursor: pointer;" data-longclick="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo (isMod() || $_SESSION['t1t']['username'] === $issue['user']); ?>" onmousedown="if(event.button == 1) {window.open('<?php echo $_SERVER['PHP_SELF']; ?>?id=<?php echo $issue['id']; ?>'); return false;}" onclick="if (window.getSelection().toString() == '') { 
 							window.ajaxify('<?php echo $_SERVER['PHP_SELF']; ?>?id=<?php echo $issue['id']; ?>');
 						}">
-							<div class="issueItem" data-ctx="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo ($_SESSION['t1t']['admin'] == 1 || $_SESSION['t1t']['username'] === $issue['user']); ?>">
+							<div class="issueItem" data-ctx="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo (isMod() || $_SESSION['t1t']['username'] === $issue['user']); ?>">
 								<span class="issueStatus <?php
 															if ($issue['priority'] == 1) {
 																echo 'important';
@@ -1664,7 +2210,7 @@ function insertJquery()
 					</form>
 				</dialog>
 
-				
+
 
 			</div>
 		<?php endif; ?>
@@ -1683,6 +2229,8 @@ function insertJquery()
 								<circle cx="12" cy="7" r="4"></circle>
 							</svg>
 							<?php echo $issue['user']; ?> - <?php echo timeToString($issue['entrytime']); ?> ago
+
+							ID: <?php echo $issue['id']; ?>
 						</div>
 					</div>
 					<hr style="width: 100%; margin-top: 15px;">
@@ -1743,10 +2291,10 @@ function insertJquery()
 					<?php
 					if (count($comments) > 0) {
 					?>
-						<h3>Comments <a class="no-text-decoration" style="font-size: 1rem" href='<?php
-																									// request url
-																									echo  getUrl();
-																									?>'>
+						<h3>Comments <a class="no-text-decoration" style="font-size: 1rem" onclick="this.firstElementChild.classList.add('loaderIcon');" href='?id=<?php
+																																									// request url
+																																									echo  $_GET['id'];
+																																									?>'>
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-refresh-cw">
 									<polyline points="23 4 23 10 17 10"></polyline>
 									<polyline points="1 20 1 14 7 14"></polyline>
@@ -1786,7 +2334,7 @@ function insertJquery()
 											<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
 										</svg>
 									</a>
-									<?php if ($_SESSION['t1t']['admin'] || $_SESSION['t1t']['username'] == $comment['user']) : ?>
+									<?php if (isMod() || $_SESSION['t1t']['username'] == $comment['user']) : ?>
 
 										<a class="important no-text-decoration" onclick="deleteModal(this)" data-deleteUrl='<?php echo $_SERVER['PHP_SELF']; ?>?deletecomment&id=<?php echo $issue['id']; ?>&cid=<?php echo $comment['id']; ?>' title="Delete comment">
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash">
@@ -1829,9 +2377,9 @@ function insertJquery()
 						<h4>Post a comment</h4>
 						<form method="POST" style="position: relative; min-height: 200px;" onsubmit="
 							showLoader(this);
-						">
+						" id="commentForm">
 							<input type="hidden" name="issue_id" value="<?php echo $issue['id']; ?>" />
-							<textarea name="description" rows="5" cols="50" style="width: 100%;" placeholder="Comment here..."></textarea>
+							<textarea id="commentInput" name="description" rows="5" cols="50" style="width: 100%;" placeholder="Comment here..."></textarea>
 							<a class="right no-text-decoration" target="_blank" title="Markdown Cheatsheet" href="https://gist.github.com/JMcrafter26/b6428ddeb6cd40e3fc99ff6df74ff707#file-edited-markdown-cheat-sheet-md">
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-help-circle">
 									<circle cx="12" cy="12" r="10"></circle>
@@ -1842,7 +2390,7 @@ function insertJquery()
 							</a>
 							<label></label>
 							<input type="hidden" name="createcomment" value="Comment" />
-							<button type="submit">Comment</button>
+							<button type="submit" id="postCommentBtn">Comment</button>
 						</form>
 					</div>
 				</div>
@@ -1861,8 +2409,10 @@ function insertJquery()
 						<circle cx="12" cy="8" r="7"></circle>
 						<polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
 					</svg>
-					Admin Area
+					Admin Panel
 				</h2>
+				<hr>
+				<br>
 
 				<?php
 				if (isset($message) && $message != '') {
@@ -1870,29 +2420,31 @@ function insertJquery()
 				}
 				?>
 
+				<h3>Users</h3>
+
 				<div class="issueList">
 					<?php
 					foreach ($USERS as $user) {
 					?>
 
 
-						<div class="issueItem" data-ctx="true" data-userid="<?php echo $user['id']; ?>" data-allowdelete="<?php echo ($user['username'] !== $_SESSION['t1t']['username'] && $user['username'] !== 'admin') ? 'true' : 'false'; ?>" data-userinfo='<?php echo json_encode($user); ?>'>
+						<div class="issueItem" data-ctx="true" data-userid="<?php echo $user['id']; ?>" data-allowdelete="<?php echo ($user['username'] != $_SESSION['t1t']['username'] && $user['role'] != 5) ? 'true' : 'false'; ?>" data-userinfo='<?php echo json_encode($user); ?>'>
 							<span class="issueStatus <?php
-														if ($user['admin'] == 3) {
+														if ($user['role'] == 0) {
 															echo 'warning';
-														} else if ($user['admin'] == 1) {
+														} else if ($user['role'] > 3) {
 															echo 'closed';
 														} else {
 															echo 'active';
 														} ?>">
 								<?php
 								// check if user has admin rights
-								if ($user['admin'] == 1) { ?>
+								if ($user['role'] > 2) { ?>
 									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-award">
 										<circle cx="12" cy="8" r="7"></circle>
 										<polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
 									</svg>
-								<?php } else if ($user['admin'] == 3) { ?>
+								<?php } else if ($user['role'] == 0) { ?>
 									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-pause">
 										<rect x="6" y="4" width="4" height="16"></rect>
 										<rect x="14" y="4" width="4" height="16"></rect>
@@ -1906,14 +2458,7 @@ function insertJquery()
 							</span>
 							<div class="itemBody">
 								<div class="issueTitle">
-									<span <?php
-											if ($issue['priority'] == 1) {
-												echo 'class="important"';
-											} else if ($issue['priority'] == 3) {
-												echo 'class="unimportant"';
-											}
-
-											?>>
+									<span>
 										<span style="user-select: all;"><?php echo $user['username']; ?></span> - <span style="opacity: 0.7; user-select: all;"><?php echo $user['email']; ?></span>
 									</span>
 									<span class="watchStatus">
@@ -1924,46 +2469,177 @@ function insertJquery()
 									<div class="left">
 										Created <span title="<?php echo $user['entrytime']; ?>"><?php echo timeToString($user['entrytime']); ?></span> ago</span>
 									</div>
-									<?php if ($issue['comment_count'] > 0) { ?>
-										<div class="right">
-											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-message-circle">
-												<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-											</svg>
-											<span><?php echo $issue['comment_count']; ?></span>
-										</div>
-									<?php } ?>
 								</div>
 							</div>
 						</div>
 
+					<?php } ?>
 
 
 
-						<dialog id="confirmDelete" style="width: 300px; height: 250px;">
-							<form>
-								<p>Are you sure you want to <em>DELETE</em> this user?</p>
-								<p style="font-size: 0.8rem; opacity: 0.7;">Comments and issues created by this user will not be deleted.</p>
-								<p style="opacity: 0.7; color: #f85149;">This action cannot be undone.</p>
-								<br>
-								<div>
-									<button onclick="document.getElementById('confirmDelete').close();" class="left">Cancel</button>
-									<a href="#" class="right btn" style="background-color: #f85149;" id="confirmDeleteButton" onclick="showLoader(this);">Delete</a>
+					<dialog id="confirmDelete" style="width: 300px; height: 250px;">
+						<form>
+							<p>Are you sure you want to <em>DELETE</em> this user?</p>
+							<p style="font-size: 0.8rem; opacity: 0.7;">Comments and issues created by this user will not be deleted.</p>
+							<p style="opacity: 0.7; color: #f85149;">This action cannot be undone.</p>
+							<br>
+							<div>
+								<button onclick="document.getElementById('confirmDelete').close();" class="left">Cancel</button>
+								<a href="#" class="right btn" style="background-color: #f85149;" id="confirmDeleteButton" onclick="showLoader(this);">Delete</a>
+							</div>
+						</form>
+					</dialog>
+					<dialog id="confirmBan" style="width: 300px; height: 190px;">
+						<form>
+							<p>Are you sure you want to <em>BAN</em> this user?</p>
+							<p style="font-size: 0.8rem; opacity: 0.7;">Comments and issues created by this user will not be deleted.</p>
+							<br>
+							<div>
+								<button onclick="document.getElementById('confirmDelete').close();" class="left">Cancel</button>
+								<a href="#" class="right btn" style="background-color: #fedd48; color: #666" id="confirmBanButton" onclick="showLoader(this);">Ban</a>
+							</div>
+						</form>
+					</dialog>
+
+				</div>
+
+				<br>
+				<h3>Update</h3>
+				<form action="?admin-panel&getupdateinfo" method="GET" class="settingContainer">
+					<button type="submit" onclick="this.firstElementChild.classList.add('loaderIcon');">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-refresh-cw">
+							<polyline points="23 4 23 10 17 10"></polyline>
+							<polyline points="1 20 1 14 7 14"></polyline>
+							<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+						</svg>
+						Check for updates
+					</button>
+
+					<br>
+					<?php if (isset($updateInfo) && count($updateInfo) > 0) {
+						// if updateinfo time is longer than 1 week, unset it
+
+							if ($updateInfo['latest'] > $VERSION) { ?>
+								<h4>New update available! <a href="https://github.com/JMcrafter26/tiny-issue-tracker" target="_blank">Update Now</a></h4>
+							<?php } else { 
+						if (isset($updateInfo['time']) && strtotime($updateInfo['time']) > strtotime("-1 week")) { ?>
+								<h4>No updates :)</h4>
+						<?php } else { ?>
+								<h4>Please check for updates to ensure you have the latest features and security updates.</h4>
+						<?php } } ?>
+						<p>This version: <?php echo $VERSION; ?><br>
+							<?php if (isset($updateInfo)) { ?>
+								Latest version: <?php echo $updateInfo['latest']; ?><br>
+						</p>
+						<p>Release Notes:<br>
+							<?php 
+							// replace \n with <br>
+							echo str_replace("\n", "<br>", $updateInfo['notes']);
+							?>
+						</p>
+					<?php } } if (isset($updateInfo['time']) && $updateInfo['time'] != '') { ?>
+					<p style="font-size: 0.8em; opacity: 0.7;">Last checked: <?php echo timeToString($updateInfo['time']); ?> ago (<?php echo $updateInfo['time']; ?>)</p>
+				<?php } else { ?>
+					<p>This version: <?php echo $VERSION; ?></p>
+					<p style="font-size: 0.8em; opacity: 0.7;">Never checked for updates</p>
+				<?php } ?>
+
+
+				</form>
+
+				<br>
+				<h3>Action Log</h3>
+				<div class="issueList">
+					<?php
+					// if isset GET page
+					if (isset($_GET['page'])) {
+						$page = $_GET['page'];
+					} else {
+						$page = 1;
+					}
+					$limit = 10;
+					$offset = ($page - 1) * $limit;
+					// get the log from the database
+					$LOG = $db->query("SELECT * FROM logs ORDER BY entrytime DESC LIMIT $limit OFFSET $offset")->fetchAll();
+					// get totalpages
+					$totalPages = ceil($db->query("SELECT COUNT(*) FROM logs")->fetchColumn() / $limit);
+					// if page is higher than totalpages
+					if ($page > $totalPages) {
+						$page = $totalPages;
+					}
+
+
+					// log structure: id, user_id (the user that made the action), action, details, priority (1-5), entrytime
+					foreach ($LOG as $log) {
+						// echo var_dump($log);
+					?>
+						<div class="issueItem">
+							<span class="issueStatus active">
+								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-activity">
+									<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+								</svg>
+							</span>
+							<div class="itemBody">
+								<div class="issueTitle">
+									<span><?php echo $log['action']; ?></span>
 								</div>
-							</form>
-						</dialog>
-						<dialog id="confirmBan" style="width: 300px; height: 190px;">
-							<form>
-								<p>Are you sure you want to <em>BAN</em> this user?</p>
-								<p style="font-size: 0.8rem; opacity: 0.7;">Comments and issues created by this user will not be deleted.</p>
-								<br>
-								<div>
-									<button onclick="document.getElementById('confirmDelete').close();" class="left">Cancel</button>
-									<a href="#" class="right btn" style="background-color: #fedd48; color: #666" id="confirmBanButton" onclick="showLoader(this);">Ban</a>
+								<p style="font-size: 0.9rem; margin-top: 5px; margin-bottom: 5px;">
+									<?php echo $log['details']; ?></p>
+
+								<div class="itemDetails">
+									<div class="left">
+										<?php
+										// get the user that made the action
+										if ($log['user_id'] == 0) {
+											$user = array('username' => 'System');
+										} else if ($log['user_id'] == -1) {
+											$user = array('username' => 'Guest');
+										} else if ($log['user_id'] == '') {
+											$user = array('username' => '');
+										} else {
+											$user = $db->query("SELECT username FROM users WHERE id = " . $log['user_id'])->fetch();
+											if (!$user) {
+												$user = array('username' => 'Unknown');
+											}
+										}
+										?>
+										<span><?php echo $user['username']; ?></span> - <span title="<?php echo $log['entrytime']; ?>"><?php echo timeToString($log['entrytime']); ?></span> ago
+									</div>
 								</div>
-							</form>
-						</dialog>
+							</div>
+						</div>
 					<?php } ?>
 				</div>
+				<div class="between">
+					<div>
+						<button onclick="window.ajaxify('?admin-panel&page=' + <?php echo $page - 1; ?>);" style="margin-top: 10px; padding-left: 10px; padding-right: 10px;" <?php if ($page == 1) {
+																																													echo 'disabled';
+																																												} ?>>
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left">
+								<line x1="19" y1="12" x2="5" y2="12"></line>
+								<polyline points="12 19 5 12 12 5"></polyline>
+							</svg>
+						</button>
+						<button onclick="window.ajaxify('?admin-panel&page=' + <?php echo $page + 1; ?>);" style="margin-top: 10px; padding-left: 10px; padding-right: 10px;" <?php if ($page == $totalPages) {
+																																													echo 'disabled';
+																																												} ?>>
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-right">
+								<line x1="5" y1="12" x2="19" y2="12"></line>
+								<polyline points="12 5 19 12 12 19"></polyline>
+							</svg>
+						</button>
+					</div>
+					<div>
+						<a href="?admin-panel&clearlogs" class="right btn" style="margin-top: 10px; padding-left: 10px; padding-right: 10px;">
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash">
+								<polyline points="3 6 5 6 21 6"></polyline>
+								<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+							</svg>
+							Clear Logs
+						</a>
+					</div>
+				</div>
+				<br>
 
 			</div>
 		<?php endif; ?>
@@ -2027,437 +2703,445 @@ function insertJquery()
 		</div>
 
 		<dialog id="mobileCtxmenuTemplate">
-					<!-- <label>Are you sure you want to delete this issue?</label> -->
-					<div style="text-align: center;">
+			<!-- <label>Are you sure you want to delete this issue?</label> -->
+			<div style="text-align: center;">
 
 
-						<a class="btn" href="#" data-ctxAction="newtab">
-							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up-right">
-								<line x1="7" y1="17" x2="17" y2="7"></line>
-								<polyline points="7 7 17 7 17 17"></polyline>
-							</svg> New Tab
-						</a>
+				<a class="btn" href="#" data-ctxAction="newtab">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-up-right">
+						<line x1="7" y1="17" x2="17" y2="7"></line>
+						<polyline points="7 7 17 7 17 17"></polyline>
+					</svg> New Tab
+				</a>
 
-						<a class="btn" href="#" data-ctxAction="edit">
-							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit">
-								<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-								<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-							</svg>
-							Edit
-						</a>
+				<a class="btn" href="#" data-ctxAction="edit">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit">
+						<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+						<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+					</svg>
+					Edit
+				</a>
 
-						<a class="btn" href="#" data-ctxAction="ban" style="background-color: #fedd48; color: #666;">
-							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-slash">
-								<circle cx="12" cy="12" r="10"></circle>
-								<line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
-							</svg>
-							Ban
-						</a>
+				<a class="btn" href="#" data-ctxAction="ban" style="background-color: #fedd48; color: #666;">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-slash">
+						<circle cx="12" cy="12" r="10"></circle>
+						<line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+					</svg>
+					Ban
+				</a>
 
-						<a class="btn" style="background-color: #f85149; " href="#" data-ctxAction="delete" onclick="document.getElementById('confirmDelete').showModal();">
-							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash-2">
-								<polyline points="3 6 5 6 21 6"></polyline>
-								<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-								<line x1="10" y1="11" x2="10" y2="17"></line>
-								<line x1="14" y1="11" x2="14" y2="17"></line>
-							</svg>
-							Delete
-						</a>
-					</div>
+				<a class="btn" style="background-color: #f85149; " href="#" data-ctxAction="delete" onclick="document.getElementById('confirmDelete').showModal();">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash-2">
+						<polyline points="3 6 5 6 21 6"></polyline>
+						<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+						<line x1="10" y1="11" x2="10" y2="17"></line>
+						<line x1="14" y1="11" x2="14" y2="17"></line>
+					</svg>
+					Delete
+				</a>
+			</div>
 
-				</dialog>
+		</dialog>
 
-		<div id="footer" onclick="window.open('https://github.com/JMcrafter26/tiny-issue-tracker', '_blank');">
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-zap">
-				<defs>
-					<filter id="sharp-drop-shadow" x="-50%" y="-50%" width="200%" height="200%">
-						<feGaussianBlur in="SourceAlpha" stdDeviation="1" />
-						<feOffset dx="0" dy="0" result="offsetblur" />
-						<feFlood flood-color="#fedd48" />
-						<feComposite in2="offsetblur" operator="in" />
-						<feMerge>
-							<feMergeNode />
-							<feMergeNode in="SourceGraphic" />
-						</feMerge>
-					</filter>
-				</defs>
-				<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-			</svg>
-			Powered by <a href="https://github.com/JMcrafter26/tiny-issue-tracker" alt="Tiny Issue Tracker" target="_blank">Tiny Issue Tracker</a>
-		</div>
+		<?php if ($SHOWFOOTER) { ?>
+			<div id="footer">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-zap">
+					<defs>
+						<filter id="sharp-drop-shadow" x="-50%" y="-50%" width="200%" height="200%">
+							<feGaussianBlur in="SourceAlpha" stdDeviation="1" />
+							<feOffset dx="0" dy="0" result="offsetblur" />
+							<feFlood flood-color="#fedd48" />
+							<feComposite in2="offsetblur" operator="in" />
+							<feMerge>
+								<feMergeNode />
+								<feMergeNode in="SourceGraphic" />
+							</feMerge>
+						</filter>
+					</defs>
+					<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+				</svg>
+				Powered by <a href="https://github.com/JMcrafter26/tiny-issue-tracker" alt="Tiny Issue Tracker" target="_blank">Tiny Issue Tracker</a><?php if (isAdmin()) {
+																																							echo ' V' . $VERSION;
+																																						} ?>
+			</div>
 	</div>
+<?php } ?>
 
 
-	<script>
-		! function(e, n) {
-			"object" == typeof exports && "undefined" != typeof module ? module.exports = n() : "function" == typeof define && define.amd ? define(n) : (e = e || self).snarkdown = n()
-		}(this, function() {
-			var e = {
-				"": ["<em>", "</em>"],
-				_: ["<strong>", "</strong>"],
-				"*": ["<strong>", "</strong>"],
-				"~": ["<s>", "</s>"],
-				"\n": ["<br />"],
-				" ": ["<br />"],
-				"-": ["<hr />"]
-			};
-
-			function n(e) {
-				return e.replace(RegExp("^" + (e.match(/^(\t| )+/) || "")[0], "gm"), "")
-			}
-
-			function r(e) {
-				return (e + "").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-			}
-			return function t(o, a) {
-				var c, s, l, g, u, p = /((?:^|\n+)(?:\n---+|\* \*(?: \*)+)\n)|(?:^``` *(\w*)\n([\s\S]*?)\n```$)|((?:(?:^|\n+)(?:\t|  {2,}).+)+\n*)|((?:(?:^|\n)([>*+-]|\d+\.)\s+.*)+)|(?:!\[([^\]]*?)\]\(([^)]+?)\))|(\[)|(\](?:\(([^)]+?)\))?)|(?:(?:^|\n+)([^\s].*)\n(-{3,}|={3,})(?:\n+|$))|(?:(?:^|\n+)(#{1,6})\s*(.+)(?:\n+|$))|(?:`([^`].*?)`)|(  \n\n*|\n{2,}|__|\*\*|[_*]|~~)/gm,
-					f = [],
-					i = "",
-					d = a || {},
-					m = 0;
-
-				function h(n) {
-					var r = e[n[1] || ""],
-						t = f[f.length - 1] == n;
-					return r ? r[1] ? (t ? f.pop() : f.push(n), r[0 | t]) : r[0] : n
-				}
-
-				function $() {
-					for (var e = ""; f.length;) e += h(f[f.length - 1]);
-					return e
-				}
-				for (o = o.replace(/^\[(.+?)\]:\s*(.+)$/gm, function(e, n, r) {
-						return d[n.toLowerCase()] = r, ""
-					}).replace(/^\n+|\n+$/g, ""); l = p.exec(o);) s = o.substring(m, l.index), m = p.lastIndex, c = l[0], s.match(/[^\\](\\\\)*\\$/) || ((u = l[3] || l[4]) ? c = '<pre class="code ' + (l[4] ? "poetry" : l[2].toLowerCase()) + '"><code' + (l[2] ? ' class="language-' + l[2].toLowerCase() + '"' : "") + ">" + n(r(u).replace(/^\n+|\n+$/g, "")) + "</code></pre>" : (u = l[6]) ? (u.match(/\./) && (l[5] = l[5].replace(/^\d+/gm, "")), g = t(n(l[5].replace(/^\s*[>*+.-]/gm, ""))), ">" == u ? u = "blockquote" : (u = u.match(/\./) ? "ol" : "ul", g = g.replace(/^(.*)(\n|$)/gm, "<li>$1</li>")), c = "<" + u + ">" + g + "</" + u + ">") : l[8] ? c = '<img src="' + r(l[8]) + '" alt="' + r(l[7]) + '">' : l[10] ? (i = i.replace("<a>", '<a href="' + r(l[11] || d[s.toLowerCase()]) + '">'), c = $() + "</a>") : l[9] ? c = "<a>" : l[12] || l[14] ? c = "<" + (u = "h" + (l[14] ? l[14].length : l[13] > "=" ? 1 : 2)) + ">" + t(l[12] || l[15], d) + "</" + u + ">" : l[16] ? c = "<code>" + r(l[16]) + "</code>" : (l[17] || l[1]) && (c = h(l[17] || "--"))), i += s, i += c;
-				return (i + o.substring(m) + $()).replace(/^\n+|\n+$/g, "")
-			}
-		});
-	</script>
-	<script>
-		function deleteModal(e) {
-			const deleteUrl = e.dataset.deleteurl;
-			const confirmDeleteButton = document.getElementById('confirmDeleteButton');
-			confirmDeleteButton.href = deleteUrl;
-
-			document.getElementById('confirmDelete').showModal();
-		}
-
-		function loaderIcon() {
-			return '<svg class="loaderIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-loader"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>';
-		}
-
-		function showLoader(e) {
-			var loader = document.createElement('div');
-			loader.style.position = 'absolute';
-			loader.style.top = '0';
-			loader.style.left = '0';
-			loader.style.width = '100%';
-			// if a child contains name createcomment, make the loader 90% height
-			if (e.querySelector('[name="createcomment"]')) {
-				loader.style.height = '90%';
-				loader.style.borderRadius = '12px';
-			} else {
-				loader.style.height = '100%';
-			}
-			loader.style.backgroundColor = 'rgba(0,0,0,0.2)';
-			loader.style.zIndex = '1000';
-			loader.style.display = 'flex';
-			loader.style.justifyContent = 'center';
-			loader.style.alignItems = 'center';
-			loader.innerHTML = loaderIcon();
-
-			// get nearest form
-			e = e.closest('form');
-
-			if (e.querySelector('[name="createcomment"]')) {
-
-				e.appendChild(loader);
-			} else {
-				e.parentElement.appendChild(loader);
-			}
-
-
-		}
-
-		function copy_text(str) {
-			const el = document.createElement("textarea");
-			el.value = str;
-			el.setAttribute("readonly", "");
-			el.style.position = "absolute";
-			el.style.left = '-9999px';
-			document.body.appendChild(el);
-			el.select();
-			document.execCommand("copy");
-			document.body.removeChild(el);
+<script>
+	! function(e, n) {
+		"object" == typeof exports && "undefined" != typeof module ? module.exports = n() : "function" == typeof define && define.amd ? define(n) : (e = e || self).snarkdown = n()
+	}(this, function() {
+		var e = {
+			"": ["<em>", "</em>"],
+			_: ["<strong>", "</strong>"],
+			"*": ["<strong>", "</strong>"],
+			"~": ["<s>", "</s>"],
+			"\n": ["<br />"],
+			" ": ["<br />"],
+			"-": ["<hr />"]
 		};
 
-		function convertMarkdown() {
-			// convert the comments to markdown
-			const comments = document.querySelectorAll('[data-markdown]');
-			if (!comments) {
-				return;
-			}
-			comments.forEach(comment => {
-				const commentId = comment.dataset.comment;
-				const commentText = comment.innerHTML;
-				const markdown = snarkdown(commentText);
-				comment.innerHTML = markdown;
-				retarget(comment);
-			});
+		function n(e) {
+			return e.replace(RegExp("^" + (e.match(/^(\t| )+/) || "")[0], "gm"), "")
 		}
 
-		function retarget(el) {
-			if (el.nodeName === 'A' && !el.target && el.origin !== location.origin) {
-				el.setAttribute('target', '_blank');
-				el.setAttribute('rel', 'noreferrer noopener');
-			}
-			for (let i = el.children.length; i--;) {
-				retarget(el.children[i])
-			}
+		function r(e) {
+			return (e + "").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+		}
+		return function t(o, a) {
+			var c, s, l, g, u, p = /((?:^|\n+)(?:\n---+|\* \*(?: \*)+)\n)|(?:^``` *(\w*)\n([\s\S]*?)\n```$)|((?:(?:^|\n+)(?:\t|  {2,}).+)+\n*)|((?:(?:^|\n)([>*+-]|\d+\.)\s+.*)+)|(?:!\[([^\]]*?)\]\(([^)]+?)\))|(\[)|(\](?:\(([^)]+?)\))?)|(?:(?:^|\n+)([^\s].*)\n(-{3,}|={3,})(?:\n+|$))|(?:(?:^|\n+)(#{1,6})\s*(.+)(?:\n+|$))|(?:`([^`].*?)`)|(  \n\n*|\n{2,}|__|\*\*|[_*]|~~)/gm,
+				f = [],
+				i = "",
+				d = a || {},
+				m = 0;
 
-			// check for plain text links, and convert them to links, but only if they are not inside a code block and not already a link
-			// regex to match urls
-			const urlRegex = /((https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*))/gi;
-			if (el.nodeName !== 'CODE' && el.nodeName !== 'A') {
-				// check if the link is not already a link or image
-				if (!el.querySelector('a') && !el.querySelector('img')) {
-					el.innerHTML = el.innerHTML.replace(urlRegex, '<a href="$1" target="_blank" rel="noreferrer noopener">$1</a>');
-				}
+			function h(n) {
+				var r = e[n[1] || ""],
+					t = f[f.length - 1] == n;
+				return r ? r[1] ? (t ? f.pop() : f.push(n), r[0 | t]) : r[0] : n
 			}
 
-			// for images, add the image class
-			const images = el.querySelectorAll('img');
-			images.forEach(image => {
-				image.classList.add('markdownImage');
-				// check if image is the only child of the parent, if so, center the image
-				if (image.parentElement.children.length === 1) {
-					// image.parentElement.style.textAlign = 'center';
-				}
-			});
+			function $() {
+				for (var e = ""; f.length;) e += h(f[f.length - 1]);
+				return e
+			}
+			for (o = o.replace(/^\[(.+?)\]:\s*(.+)$/gm, function(e, n, r) {
+					return d[n.toLowerCase()] = r, ""
+				}).replace(/^\n+|\n+$/g, ""); l = p.exec(o);) s = o.substring(m, l.index), m = p.lastIndex, c = l[0], s.match(/[^\\](\\\\)*\\$/) || ((u = l[3] || l[4]) ? c = '<pre class="code ' + (l[4] ? "poetry" : l[2].toLowerCase()) + '"><code' + (l[2] ? ' class="language-' + l[2].toLowerCase() + '"' : "") + ">" + n(r(u).replace(/^\n+|\n+$/g, "")) + "</code></pre>" : (u = l[6]) ? (u.match(/\./) && (l[5] = l[5].replace(/^\d+/gm, "")), g = t(n(l[5].replace(/^\s*[>*+.-]/gm, ""))), ">" == u ? u = "blockquote" : (u = u.match(/\./) ? "ol" : "ul", g = g.replace(/^(.*)(\n|$)/gm, "<li>$1</li>")), c = "<" + u + ">" + g + "</" + u + ">") : l[8] ? c = '<img src="' + r(l[8]) + '" alt="' + r(l[7]) + '">' : l[10] ? (i = i.replace("<a>", '<a href="' + r(l[11] || d[s.toLowerCase()]) + '">'), c = $() + "</a>") : l[9] ? c = "<a>" : l[12] || l[14] ? c = "<" + (u = "h" + (l[14] ? l[14].length : l[13] > "=" ? 1 : 2)) + ">" + t(l[12] || l[15], d) + "</" + u + ">" : l[16] ? c = "<code>" + r(l[16]) + "</code>" : (l[17] || l[1]) && (c = h(l[17] || "--"))), i += s, i += c;
+			return (i + o.substring(m) + $()).replace(/^\n+|\n+$/g, "")
+		}
+	});
+</script>
+<script>
+	function deleteModal(e) {
+		const deleteUrl = e.dataset.deleteurl;
+		const confirmDeleteButton = document.getElementById('confirmDeleteButton');
+		confirmDeleteButton.href = deleteUrl;
 
+		document.getElementById('confirmDelete').showModal();
+	}
+
+	function loaderIcon() {
+		return '<svg class="loaderIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-loader"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>';
+	}
+
+	function showLoader(e) {
+		var loader = document.createElement('div');
+		loader.style.position = 'absolute';
+		loader.style.top = '0';
+		loader.style.left = '0';
+		loader.style.width = '100%';
+		// if a child contains name createcomment, make the loader 90% height
+		if (e.querySelector('[name="createcomment"]')) {
+			loader.style.height = '90%';
+			loader.style.borderRadius = '12px';
+		} else {
+			loader.style.height = '100%';
+		}
+		loader.style.backgroundColor = 'rgba(0,0,0,0.2)';
+		loader.style.zIndex = '1000';
+		loader.style.display = 'flex';
+		loader.style.justifyContent = 'center';
+		loader.style.alignItems = 'center';
+		loader.innerHTML = loaderIcon();
+
+		// get nearest form
+		e = e.closest('form');
+
+		if (e.querySelector('[name="createcomment"]')) {
+
+			e.appendChild(loader);
+		} else {
+			e.parentElement.appendChild(loader);
 		}
 
-		function showCtxMenu(e = false, issueId = false, allowDelete = false, isUser = false, isLink = false) {
-			// prevent default context menu
-			if (e) {
-				e.preventDefault();
+
+	}
+
+	function copy_text(str) {
+		const el = document.createElement("textarea");
+		el.value = str;
+		el.setAttribute("readonly", "");
+		el.style.position = "absolute";
+		el.style.left = '-9999px';
+		document.body.appendChild(el);
+		el.select();
+		document.execCommand("copy");
+		document.body.removeChild(el);
+	};
+
+	function convertMarkdown() {
+		// convert the comments to markdown
+		const comments = document.querySelectorAll('[data-markdown]');
+		if (!comments) {
+			return;
+		}
+		comments.forEach(comment => {
+			const commentId = comment.dataset.comment;
+			const commentText = comment.innerHTML;
+			const markdown = snarkdown(commentText);
+			comment.innerHTML = markdown;
+			retarget(comment);
+		});
+	}
+
+	function retarget(el) {
+		if (el.nodeName === 'A' && !el.target && el.origin !== location.origin) {
+			el.setAttribute('target', '_blank');
+			el.setAttribute('rel', 'noreferrer noopener');
+		}
+		for (let i = el.children.length; i--;) {
+			retarget(el.children[i])
+		}
+
+		// check for plain text links, and convert them to links, but only if they are not inside a code block and not already a link
+		// regex to match urls
+		const urlRegex = /((https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*))/gi;
+		if (el.nodeName !== 'CODE' && el.nodeName !== 'A') {
+			// check if the link is not already a link or image
+			if (!el.querySelector('a') && !el.querySelector('img')) {
+				el.innerHTML = el.innerHTML.replace(urlRegex, '<a href="$1" target="_blank" rel="noreferrer noopener">$1</a>');
 			}
+		}
 
-
-
-			// get the context menu element
-			var ctxmenu = document.getElementById('ctxmenuTemplate');
-
-			var optionCount = 1;
-
-			if (!ctxmenu || !ctxmenu.querySelectorAll('[data-ctxAction]').length) {
-				return;
+		// for images, add the image class
+		const images = el.querySelectorAll('img');
+		images.forEach(image => {
+			image.classList.add('markdownImage');
+			// check if image is the only child of the parent, if so, center the image
+			if (image.parentElement.children.length === 1) {
+				// image.parentElement.style.textAlign = 'center';
 			}
+		});
 
-			var ctxActions = ctxmenu.querySelectorAll('[data-ctxAction]');
+	}
+
+	function showCtxMenu(e = false, issueId = false, allowDelete = false, isUser = false, isLink = false) {
+		// prevent default context menu
+		if (e) {
+			e.preventDefault();
+		}
+
+
+
+		// get the context menu element
+		var ctxmenu = document.getElementById('ctxmenuTemplate');
+
+		var optionCount = 1;
+
+		if (!ctxmenu || !ctxmenu.querySelectorAll('[data-ctxAction]').length) {
+			return;
+		}
+
+		var ctxActions = ctxmenu.querySelectorAll('[data-ctxAction]');
 
 
 
 
-			if (issueId && !isUser && !isLink) {
-				// get all ctx actions in the context menu
-				// loop through all ctx actions
-				ctxActions.forEach(ctxAction => {
-					// get the action
-					var action = ctxAction.dataset.ctxaction;
-					if (action == 'edit') {
-						optionCount++;
-						ctxAction.href = `?editissue&id=${issueId}`;
+		if (issueId && !isUser && !isLink) {
+			// get all ctx actions in the context menu
+			// loop through all ctx actions
+			ctxActions.forEach(ctxAction => {
+				// get the action
+				var action = ctxAction.dataset.ctxaction;
+				if (action == 'edit') {
+					optionCount++;
+					ctxAction.href = `?editissue&id=${issueId}`;
+					ctxAction.style.display = 'block';
+				} else if (action == 'delete') {
+					// if allow delete is false, hide the delete button
+					if (allowDelete == 'false' || !allowDelete) {
+						ctxAction.style.display = 'none';
+					} else {
 						ctxAction.style.display = 'block';
-					} else if (action == 'delete') {
-						// if allow delete is false, hide the delete button
-						if (allowDelete == 'false' || !allowDelete) {
-							ctxAction.style.display = 'none';
+						optionCount++;
+					}
+				} else if (action == 'newtab') {
+					optionCount++;
+					ctxAction.href = `?id=${issueId}`;
+					ctxAction.target = '_blank';
+					ctxAction.style.display = 'block';
+				} else if (action == 'new') {
+					ctxAction.style.display = 'none';
+				} else {
+					ctxAction.style.display = 'none';
+				}
+			});
+
+			const confirmDeleteButton = document.getElementById('confirmDeleteButton');
+			confirmDeleteButton.href = `?deleteissue&id=${issueId}`;
+			document.getElementById('submitFormBtn').innerHTML = 'Save';
+
+		} else if (isLink) {
+			ctxActions.forEach(ctxAction => {
+				if (ctxAction.dataset.ctxaction == 'newtab') {
+					optionCount++;
+					// get the href of the link
+					ctxAction.href = isLink;
+					ctxAction.target = '_blank';
+					ctxAction.style.display = 'block';
+				} else if (ctxAction.dataset.ctxaction == 'copyLink') {
+					optionCount++;
+					ctxAction.style.display = 'block';
+					ctxAction.dataset.link = isLink;
+				} else {
+					ctxAction.style.display = 'none';
+				}
+			});
+		} else if (isUser) {
+			user = JSON.parse(isUser);
+			console.log(user);
+			ctxActions.forEach(ctxAction => {
+				if (allowDelete == 'true') {
+					if (ctxAction.dataset.ctxaction == 'delete') {
+						ctxAction.style.display = 'block';
+						optionCount++;
+					} else if (ctxAction.dataset.ctxaction == 'edit') {
+						ctxAction.style.display = 'block';
+						optionCount++;
+						ctxAction.onclick = function() {
+							var userInfo = JSON.parse(isUser);
+							document.querySelector('[name="username"]').value = userInfo.username;
+							document.querySelector('[name="email"]').value = userInfo.email;
+							document.querySelector('[name="status"]').value = userInfo.role;
+							document.getElementById('create').showModal();
+						};
+					} else if (ctxAction.dataset.ctxaction == 'ban') {
+						ctxAction.style.display = 'block';
+						optionCount++;
+						// check if user role is 0, if so, change the text to unban
+						if (user.role == 0) {
+							// if innerHTML contains Unban, do not replace it
+							if (!ctxAction.innerHTML.includes('Unban')) {
+								ctxAction.innerHTML = ctxAction.innerHTML.replace('Ban', 'Unban');
+							}
+							ctxAction.style.color = '#4caf50';
+							ctxAction.style.display = 'block';
+							ctxAction.onclick = '';
+							ctxAction.href = `?unbanuser&userId=${user.id}`;
+
 						} else {
 							ctxAction.style.display = 'block';
-							optionCount++;
-						}
-					} else if (action == 'newtab') {
-						optionCount++;
-						ctxAction.href = `?id=${issueId}`;
-						ctxAction.target = '_blank';
-						ctxAction.style.display = 'block';
-					} else if (action == 'new') {
-						ctxAction.style.display = 'none';
-					} else {
-						ctxAction.style.display = 'none';
-					}
-				});
-
-				const confirmDeleteButton = document.getElementById('confirmDeleteButton');
-				confirmDeleteButton.href = `?deleteissue&id=${issueId}`;
-				document.getElementById('submitFormBtn').innerHTML = 'Save';
-
-			} else if (isLink) {
-				ctxActions.forEach(ctxAction => {
-					if (ctxAction.dataset.ctxaction == 'newtab') {
-						optionCount++;
-						// get the href of the link
-						ctxAction.href = isLink;
-						ctxAction.target = '_blank';
-						ctxAction.style.display = 'block';
-					} else if (ctxAction.dataset.ctxaction == 'copyLink') {
-						optionCount++;
-						ctxAction.style.display = 'block';
-						ctxAction.dataset.link = isLink;
-					} else {
-						ctxAction.style.display = 'none';
-					}
-				});
-			} else if (isUser) {
-				user = JSON.parse(isUser);
-				console.log(user);
-				ctxActions.forEach(ctxAction => {
-					if (allowDelete == 'true') {
-						if (ctxAction.dataset.ctxaction == 'delete') {
-							ctxAction.style.display = 'block';
-							optionCount++;
-						} else if (ctxAction.dataset.ctxaction == 'edit') {
-							ctxAction.style.display = 'block';
-							optionCount++;
+							ctxAction.innerHTML = ctxAction.innerHTML.replace('Unban', 'Ban');
+							ctxAction.style.color = '#fedd48';
+							ctxAction.href = '#';
 							ctxAction.onclick = function() {
 								var userInfo = JSON.parse(isUser);
-								document.querySelector('[name="username"]').value = userInfo.username;
-								document.querySelector('[name="email"]').value = userInfo.email;
-								document.querySelector('[name="status"]').value = userInfo.admin;
-								document.getElementById('create').showModal();
+								document.getElementById('confirmBan').showModal();
 							};
-						} else if (ctxAction.dataset.ctxaction == 'ban') {
-							ctxAction.style.display = 'block';
-							optionCount++;
-							// check if user admin is 3, if so, change the text to unban
-							if (user.admin == 3) {
-								// if innerHTML contains Unban, do not replace it
-								if(!ctxAction.innerHTML.includes('Unban')) {
-									ctxAction.innerHTML = ctxAction.innerHTML.replace('Ban', 'Unban');
-								}
-								ctxAction.style.color = '#4caf50';
-								ctxAction.style.display = 'block';
-								ctxAction.onclick = '';
-								ctxAction.href = `?unbanuser&id=${user.id}`;
-
-							} else {
-								ctxAction.style.display = 'block';
-								ctxAction.innerHTML = ctxAction.innerHTML.replace('Unban', 'Ban');
-								ctxAction.style.color = '#fedd48';
-								ctxAction.href = '#';
-								ctxAction.onclick = function() {
-									var userInfo = JSON.parse(isUser);
-									document.getElementById('confirmBan').showModal();
-								};
-							}
-						} else {
-							ctxAction.style.display = 'none';
 						}
 					} else {
-						if (ctxAction.dataset.ctxaction == 'new') {
-							ctxAction.style.display = 'block';
-							optionCount++;
-						} else {
-							ctxAction.style.display = 'none';
-						}
-					}
-				});
-
-				document.getElementById('confirmDeleteButton').href = `?deleteuser&id=${user.id}`;
-				document.getElementById('confirmBanButton').href = `?banuser&id=${user.id}`;
-				// change submitFormBtn to edit
-				document.getElementById('submitFormBtn').innerHTML = 'Save';
-
-
-			} else {
-				ctxActions.forEach(ctxAction => {
-					if (ctxAction.dataset.ctxaction == 'refresh') {
-						if (window.location.search.includes('id')) {
-							ctxAction.style.display = 'block';
-						} else {
-							ctxAction.style.display = 'none';
-						}
-					} else if (ctxAction.dataset.ctxaction != 'new') {
 						ctxAction.style.display = 'none';
-
-					} else {
-						// check if page is issue page, if so, rename the new button to edit
-						// check if parameter id in url is set
-
-						if (window.location.search.includes('id')) {
-							ctxAction.style.display = 'none';
-						} else {
-							ctxAction.style.display = 'block';
-						}
 					}
-				});
-
-				document.getElementById('submitFormBtn').innerHTML = 'Create';
-			}
-
-			// based on the option count, add margin-bottom to the context menu
-			// reset the margin
-			const ctxmenuItems = ctxmenu.querySelectorAll('a');
-			ctxmenuItems.forEach(ctxmenuItem => {
-				ctxmenuItem.style.marginBottom = '0';
+				} else {
+					if (ctxAction.dataset.ctxaction == 'new') {
+						ctxAction.style.display = 'block';
+						optionCount++;
+					} else {
+						ctxAction.style.display = 'none';
+					}
+				}
 			});
 
-			if (optionCount > 1) {
-				ctxmenuItems.forEach(ctxmenuItem => {
-					ctxmenuItem.style.marginBottom = '5px';
-				});
-				// last item should not have margin
-				ctxmenuItems[optionCount - 1].style.marginBottom = '2px';
-			}
-
-			// alert(optionCount);
+			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}`;
+			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}`;
+			// change submitFormBtn to edit
+			document.getElementById('submitFormBtn').innerHTML = 'Save';
 
 
-			// set the position of the context menu
-			ctxmenu.style.top = `${e.clientY}px`;
-			ctxmenu.style.left = `${e.clientX}px`;
+		} else {
+			ctxActions.forEach(ctxAction => {
+				if (ctxAction.dataset.ctxaction == 'refresh') {
+					if (window.location.search.includes('id')) {
+						ctxAction.style.display = 'block';
+					} else {
+						ctxAction.style.display = 'none';
+					}
+				} else if (ctxAction.dataset.ctxaction != 'new') {
+					ctxAction.style.display = 'none';
 
-			// show the context menu
-			ctxmenu.style.display = 'block';
+				} else {
+					// check if page is issue page, if so, rename the new button to edit
+					// check if parameter id in url is set
 
-			// hide the context menu when clicked outside
-			document.addEventListener('click', hideCtxMenu);
+					if (window.location.search.includes('id')) {
+						ctxAction.style.display = 'none';
+					} else {
+						ctxAction.style.display = 'block';
+					}
+				}
+			});
+
+			document.getElementById('submitFormBtn').innerHTML = 'Create';
 		}
 
+		// based on the option count, add margin-bottom to the context menu
+		// reset the margin
+		const ctxmenuItems = ctxmenu.querySelectorAll('a');
+		ctxmenuItems.forEach(ctxmenuItem => {
+			ctxmenuItem.style.marginBottom = '0';
+		});
 
-		function hideCtxMenu() {
-			const ctxmenu = document.getElementById('ctxmenuTemplate');
-			ctxmenu.style.display = 'none';
-			document.removeEventListener('click', hideCtxMenu);
+		if (optionCount > 1) {
+			ctxmenuItems.forEach(ctxmenuItem => {
+				ctxmenuItem.style.marginBottom = '5px';
+			});
+			// last item should not have margin
+			ctxmenuItems[optionCount - 1].style.marginBottom = '2px';
 		}
 
-		function showMobileCtxMenu(target) {
-			// alert('long press on ' + target.dataset.issueid);
-			// showCtxMenu(false, target.dataset.issueid, target.dataset.allowdelete);
-			var mobileCtx = document.getElementById('mobileCtxmenuTemplate');
+		// alert(optionCount);
 
-			// inside get the elements with data-ctxAction
-			var ctxActions = mobileCtx.querySelectorAll('[data-ctxAction]');
 
-			// check if target is a user
-			var user = false;
-			if (target.dataset.userinfo) {
-				user = JSON.parse(target.dataset.userinfo);
-			}
-			if (user) {
-				// loop through all ctx actions
-				ctxActions.forEach(ctxAction => {
-					// get the action
-					var action = ctxAction.dataset.ctxaction;
-					// check if allow delete is true
-					if (target.dataset.allowdelete == 'true') {
+		// set the position of the context menu
+		ctxmenu.style.top = `${e.clientY}px`;
+		ctxmenu.style.left = `${e.clientX}px`;
+
+		// show the context menu
+		ctxmenu.style.display = 'block';
+
+		// hide the context menu when clicked outside
+		document.addEventListener('click', hideCtxMenu);
+	}
+
+
+	function hideCtxMenu() {
+		const ctxmenu = document.getElementById('ctxmenuTemplate');
+		ctxmenu.style.display = 'none';
+		document.removeEventListener('click', hideCtxMenu);
+	}
+
+	function showMobileCtxMenu(target) {
+
+		// deselect any text if selected
+		window.getSelection().removeAllRanges();
+
+		// alert('long press on ' + target.dataset.issueid);
+		// showCtxMenu(false, target.dataset.issueid, target.dataset.allowdelete);
+		var mobileCtx = document.getElementById('mobileCtxmenuTemplate');
+
+		// inside get the elements with data-ctxAction
+		var ctxActions = mobileCtx.querySelectorAll('[data-ctxAction]');
+
+		// check if target is a user
+		var user = false;
+		if (target.dataset.userinfo) {
+			user = JSON.parse(target.dataset.userinfo);
+		}
+		if (user) {
+			// loop through all ctx actions
+			ctxActions.forEach(ctxAction => {
+				// get the action
+				var action = ctxAction.dataset.ctxaction;
+				// check if allow delete is true
+				if (target.dataset.allowdelete == 'true') {
 					if (action == 'edit') {
 						ctxAction.style.display = 'block';
 						ctxAction.onclick = function() {
 							document.querySelector('[name="username"]').value = user.username;
 							document.querySelector('[name="email"]').value = user.email;
-							document.querySelector('[name="status"]').value = user.admin;
+							document.querySelector('[name="status"]').value = user.role;
 							document.getElementById('create').showModal();
 						};
 					} else if (action == 'delete') {
@@ -2467,17 +3151,17 @@ function insertJquery()
 						};
 					} else if (action == 'ban') {
 						ctxAction.style.display = 'block';
-						// check if user admin is 3, if so, change the text to unban
-						if (user.admin == 3) {
+						// check if user role is 3, if so, change the text to unban
+						if (user.role == 0) {
 							// if innerHTML contains Unban, do not replace it
-							if(!ctxAction.innerHTML.includes('Unban')) {
+							if (!ctxAction.innerHTML.includes('Unban')) {
 								ctxAction.innerHTML = ctxAction.innerHTML.replace('Ban', 'Unban');
 							}
 							ctxAction.style.color = 'var(--text-main)';
 							ctxAction.style.backgroundColor = '#4caf50';
 							ctxAction.style.display = 'block';
 							ctxAction.onclick = '';
-							ctxAction.href = `?unbanuser&id=${user.id}`;
+							ctxAction.href = `?unbanuser&userId=${user.id}`;
 
 						} else {
 							ctxAction.style.display = 'block';
@@ -2495,20 +3179,20 @@ function insertJquery()
 				} else {
 					ctxAction.style.display = 'none';
 				}
-				});
+			});
 
-				if (target.dataset.allowdelete != 'true') {
-					// hide the dialog
-					document.getElementById('mobileCtxmenuTemplate').close();
-					return;
-				}
+			if (target.dataset.allowdelete != 'true') {
+				// hide the dialog
+				document.getElementById('mobileCtxmenuTemplate').close();
+				return;
+			}
 
-				document.getElementById('confirmDeleteButton').href = `?deleteuser&id=${user.id}`;
-				document.getElementById('confirmBanButton').href = `?banuser&id=${user.id}`;
-				// change submitFormBtn to edit
-								document.getElementById('submitFormBtn').innerHTML = 'Save';
-			} else {
-				// loop through all ctx actions
+			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}`;
+			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}`;
+			// change submitFormBtn to edit
+			document.getElementById('submitFormBtn').innerHTML = 'Save';
+		} else {
+			// loop through all ctx actions
 			ctxActions.forEach(ctxAction => {
 				if (ctxAction.dataset.ctxaction == 'edit') {
 					ctxAction.href = `?editissue&id=${target.dataset.issueid}`;
@@ -2531,132 +3215,227 @@ function insertJquery()
 			document.getElementById('submitFormBtn').innerHTML = 'Create';
 		}
 
-			mobileCtx.showModal();
+		mobileCtx.showModal();
+	}
+
+	function highlightComment() {
+		// check if url contains hash
+		if (!window.location.hash) {
+			return;
 		}
 
-		function highlightComment() {
-			// check if url contains hash
-			if (!window.location.hash) {
-				return;
-			}
+		const commentId = window.location.hash;
 
-			const commentId = window.location.hash;
+		const highlitedComments = document.querySelectorAll('.highlightedComment');
+		highlitedComments.forEach(highlitedComment => {
+			highlitedComment.classList.remove('highlightedComment');
+		});
 
-			const highlitedComments = document.querySelectorAll('.highlightedComment');
-			highlitedComments.forEach(highlitedComment => {
-				highlitedComment.classList.remove('highlightedComment');
+		const comment = document.querySelector(commentId);
+		if (comment) {
+			comment.classList.add('highlightedComment');
+			// scroll to the comment (smooth)
+			comment.scrollIntoView({
+				behavior: 'smooth'
 			});
 
-			const comment = document.querySelector(commentId);
-			if (comment) {
-				comment.classList.add('highlightedComment');
-				// scroll to the comment (smooth)
-				comment.scrollIntoView({
-					behavior: 'smooth'
-				});
+			// add eventlistener to remove the class after user clicks on the comment
+			document.addEventListener('click', function() {
+				comment.classList.remove('highlightedComment');
+			});
 
-				// add eventlistener to remove the class after user clicks on the comment
-				document.addEventListener('click', function() {
-					comment.classList.remove('highlightedComment');
-				});
-			}
+			// after 5 seconds, remove the class, transition smoothly
+			setTimeout(function() {
+				comment.classList.remove('highlightedComment');
+			}, 2000);
+		}
+	}
+
+	function resetTips() {
+		localStorage.setItem('tipCount', '0');
+		localStorage.setItem('hideTips', 'false');
+		showTips();
+	}
+
+	function showTips() {
+		let tipsLength = document.querySelectorAll('.tip').length;
+		// add tipCount to local storage
+		if (localStorage.getItem('tipCount') == null) {
+			localStorage.setItem('tipCount', '0');
+		}
+		// if in local storage is set hideTips, hide the tips or tipCount is grater than 10
+		if (localStorage.getItem('hideTips') != 'true' && parseInt(localStorage.getItem('tipCount')) < (tipsLength * 2.5)) {
+			document.querySelector('.tips').classList.remove('hide');
 		}
 
 
-		function pageInit() {
-			// if message parameter in url is set, remove it 
-			if (window.location.search.includes('message')) {
-				var url = window.location.href;
-				// replace &message= and everything after it with nothing
-				url = url.replace(/&message=.*/g, '');
-				history.replaceState({}, document.title, url);
-			}
+		document.querySelector('#closeTips').addEventListener('click', () => {
+			document.querySelector('.tips').classList.add('hide');
+			localStorage.setItem('hideTips', 'true');
+		});
 
-			if (!window.msgShown) {
-				console.log('First, I thought you were a hacker, but then I realized you are just a curious person. \n The source code is available at https://github.com/JMcrafter26/tiny-issue-tracker. \n If you have any questions, feel free to ask me on GitHub.');
-				window.msgShown = true;
-			}
 
-			// add eventlistener, if dialog is shown, when user clicks outside, close the dialog (only when clicked outside, not inside)
-			document.querySelectorAll('dialog').forEach(dialog => {
-				dialog.addEventListener('click', function(e) {
-					if (e.target === dialog || e.target.tagName === 'FORM' && e.target.tagName === 'BUTTON' && e.target.tagName === 'A') {
-						// check if dialog is open
-						if (dialog.open) {
-							dialog.close();
-						}
-					}
+		let tipCount = parseInt(localStorage.getItem('tipCount')) || 0;
+		// Increment tipCount in localStorage for the next time
+		localStorage.setItem('tipCount', tipCount + 1);
 
-				});
-			});
 
-			// on scroll, hide the context menu
-			document.addEventListener('scroll', hideCtxMenu);
+		// Calculate modulus only when deciding which tip to show
+		let currentTip = (tipCount % tipsLength) + 1;
+		// console.log(currentTip);
+		document.querySelector('.tipNumber').innerText = currentTip;
+		// show the current tip
+		document.querySelector('.tip[data-tip="' + currentTip + '"]').classList.add('active');
 
-			var pressTimer;
-			var issueItems = document.querySelectorAll(".issueItem");
-
-			issueItems.forEach(function(issueItem) {
-				issueItem.addEventListener('touchend', function(e) {
-					clearTimeout(pressTimer);
-				});
-
-				issueItem.addEventListener('touchstart', function(e) {
-					var target = e.currentTarget;
-
-					// Set timeout
-					pressTimer = window.setTimeout(function() {
-						showMobileCtxMenu(target);
-					}, 500);
-				});
-			});
-
-			convertMarkdown();
-			highlightComment();
-
-			oncontextmenu = (e) => {
-				// check if a parent element has the data-ctx attribute in the hierarchy
-				if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx && e.target.closest('.issueItem').dataset.issueid !== undefined) {
-					showCtxMenu(e, e.target.closest('.issueItem').dataset.issueid, e.target.closest('.issueItem').dataset.allowdelete);
-				} else if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx && e.target.closest('.issueItem').dataset.userid !== undefined) {
-					showCtxMenu(e, e.target.closest('.issueItem').dataset.userid, e.target.closest('.issueItem').dataset.allowdelete, e.target.closest('.issueItem').dataset.userinfo);
-					// check if element is a link
-				} else if (e.target.closest('a')) {
-					// open link in new tab
-					showCtxMenu(e, false, false, false, e.target.closest('a').href);
+		function changeTip(direction) {
+			const tips = document.querySelectorAll('.tip');
+			let activeTip = document.querySelector('.tip.active');
+			let tipNumber = parseInt(document.querySelector('.tipNumber').innerText);
+			activeTip.classList.remove('active');
+			if (direction == 'next') {
+				if (tipNumber == tips.length) {
+					tipNumber = 1;
 				} else {
-					showCtxMenu(e);
+					tipNumber++;
+				}
+			} else {
+				if (tipNumber == 1) {
+					tipNumber = tips.length;
+				} else {
+					tipNumber--;
 				}
 			}
+			document.querySelector('.tipNumber').innerText = tipNumber;
+			document.querySelector('.tip[data-tip="' + tipNumber + '"]').classList.add('active');
+		}
 
-			// if in url editissue is set, show the dialog
-			if (window.location.search.includes('editissue')) {
-				document.getElementById('create').className = '';
-				document.getElementById('create').showModal();
-				document.getElementById('title').focus();
-				// replace the editissue in the url with nothing (only remove the parameter, keep the rest)
-				var url = window.location.href;
-				url = url.replace('editissue&', '');
-				history.replaceState({}, document.title, url);
+		document.querySelector('#nextTip').addEventListener('click', () => {
+			changeTip('next');
+			// increment tipCount
+			localStorage.setItem('tipCount', parseInt(localStorage.getItem('tipCount')) + 1);
+		});
+
+		document.querySelector('#prevTip').addEventListener('click', () => {
+			changeTip('prev');
+		});
+	}
+
+	function pageInit() {
+		// if message parameter in url is set, remove it 
+		if (window.location.search.includes('message') || window.location.search.includes('getupdateinfo')) {
+			var url = window.location.href;
+			// replace &message= and everything after it with nothing
+			url = url.replace(/&message=.*/g, '');
+			// replace &getupdateinfo
+			url = url.replace(/&getupdateinfo/g, '');
+			// if there is a & at the end, without anything after it, remove it
+			url = url.replace(/&$/, '');
+			history.replaceState({}, document.title, url);
+		}
+
+		if (!window.msgShown) {
+			window.msgShown = !0;
+			let e = ["background: #fedd48", "color: #333", "padding: 10px 20px", "font-size: 16px", "line-height: 1.6", "border-radius: 12px", 'font-family: "Arial", sans-serif', "white-space: pre-line"].join(";");
+			console.log("\n%cPowered by Tiny Issue Tracker", e, '\n\nThe source code is freely available at\nhttps://github.com/JMcrafter26/tiny-issue-tracker\n\nFeel free to check it out and contribute.\nIf you have any questions, feel free to ask me on GitHub. "easterEgg()"'), window.easterEgg = function() {
+				console.log("You found the easter egg! 🥚\n\nYou can be proud of yourself ;)"), setTimeout(function() {
+					window.open("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "_blank")
+				}, 3e3)
 			}
 		}
 
 
+		// add eventlistener, if dialog is shown, when user clicks outside, close the dialog (only when clicked outside, not inside)
+		document.querySelectorAll('dialog').forEach(dialog => {
+			dialog.addEventListener('click', function(e) {
+				if (e.target === dialog || e.target.tagName === 'FORM' && e.target.tagName === 'BUTTON' && e.target.tagName === 'A') {
+					// check if dialog is open
+					if (dialog.open) {
+						dialog.close();
+					}
+				}
 
-		// after page load
-		document.addEventListener("DOMContentLoaded", function() {
+			});
+		});
+
+		// on scroll, hide the context menu
+		document.addEventListener('scroll', hideCtxMenu);
+
+		var pressTimer;
+		var issueItems = document.querySelectorAll(".issueItem");
+
+		issueItems.forEach(function(issueItem) {
+			issueItem.addEventListener('touchend', function(e) {
+				clearTimeout(pressTimer);
+			});
+
+			issueItem.addEventListener('touchstart', function(e) {
+				var target = e.currentTarget;
+
+				// Set timeout
+				pressTimer = window.setTimeout(function() {
+					// e.preventDefault();
+					// e.stopPropagation();
+					showMobileCtxMenu(target);
+				}, 500);
+			});
+		});
+
+		// add event listener when user starts scrolling and stop scrolling
+		// on touchmove
+		document.addEventListener('touchmove', function() {
+			clearTimeout(pressTimer);
+		});
+
+		convertMarkdown();
+		highlightComment();
+
+		oncontextmenu = (e) => {
+			// check if a parent element has the data-ctx attribute in the hierarchy
+			if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx && e.target.closest('.issueItem').dataset.issueid !== undefined) {
+				showCtxMenu(e, e.target.closest('.issueItem').dataset.issueid, e.target.closest('.issueItem').dataset.allowdelete);
+			} else if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx && e.target.closest('.issueItem').dataset.userid !== undefined) {
+				showCtxMenu(e, e.target.closest('.issueItem').dataset.userid, e.target.closest('.issueItem').dataset.allowdelete, e.target.closest('.issueItem').dataset.userinfo);
+				// check if element is a link
+			} else if (e.target.closest('a')) {
+				// open link in new tab
+				showCtxMenu(e, false, false, false, e.target.closest('a').href);
+			} else {
+				showCtxMenu(e);
+			}
+		}
+
+		// if in url editissue is set, show the dialog
+		if (window.location.search.includes('editissue')) {
+			document.getElementById('create').className = '';
+			document.getElementById('create').showModal();
+			document.getElementById('title').focus();
+			// replace the editissue in the url with nothing (only remove the parameter, keep the rest)
+			var url = window.location.href;
+			url = url.replace('editissue&', '');
+			history.replaceState({}, document.title, url);
+		}
+	}
+
+
+
+	// on page load, run showTips
+	window.addEventListener('load', showTips);
+
+	// after page load
+	document.addEventListener("DOMContentLoaded", function() {
+
+		pageInit();
+	});
+
+	document.addEventListener("ajaxify:load", function(e) {
+
+		// wait 100ms before triggering pageInit
+		setTimeout(function() {
+			showTips();
 			pageInit();
-
-		});
-
-		document.addEventListener("ajaxify:load", function(e) {
-
-			// wait 100ms before triggering pageInit
-			setTimeout(function() {
-				pageInit();
-			}, 100);
-		});
-	</script>
+		}, 100);
+	});
+</script>
 
 </body>
 

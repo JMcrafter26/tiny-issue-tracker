@@ -14,9 +14,10 @@
 
 $VERSION = 3.2;
 
-// no display errors
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+
+error_reporting(0);
+ini_set('display_errors', 0);
+
 
 if (!defined("TIT_INCLUSION")) {
 	$TITLE = "My Project";              // Project Title
@@ -637,7 +638,7 @@ if (isset($_GET["unbanuser"])) {
 
 if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 	try {
-		$updateInfo = json_decode(file_get_contents("https://raw.githack.com/JMcrafter26/tiny-issue-tracker/main/version.json"), true);
+		$updateInfo = json_decode(file_get_contents("https://raw.githack.com/JMcrafter26/tiny-issue-tracker/main/version.json?rand=" . rand()), true);
 	} catch (Exception $e) {
 		$message += "Error getting update info";
 	}

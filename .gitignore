@@ -10,4 +10,7 @@
 
 inc.php
 
+# Ignore backup- files
+backup-*
+
 /beta/old*

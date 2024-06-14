@@ -12,7 +12,7 @@
 // CONFIGURATION //
 ///////////////////
 
-$VERSION = 3.0;
+$VERSION = 3.2;
 
 // no display errors
 ini_set('display_errors', 1);
@@ -21,6 +21,7 @@ error_reporting(E_ALL);
 if (!defined("TIT_INCLUSION")) {
 	$TITLE = "My Project";              // Project Title
 	$EMAIL = "noreply@example.com";     // "From" email address for notifications
+	$SHOWFOOTER = true;
 
 	// Array of users.
 	// Mandatory fields: username, password (md5 hash)
@@ -56,10 +57,8 @@ if (!defined("TIT_INCLUSION")) {
 
 // if (get_magic_quotes_gpc()){ // DEPRECATED
 
-//     if(
 foreach ($_GET  as $k => $v) $_GET[$k] = stripslashes($v);
 foreach ($_POST as $k => $v) $_POST[$k] = stripslashes($v);
-// }
 
 // Here we go...
 session_start();
@@ -201,8 +200,16 @@ if (isset($_GET["id"])) {
 // if no issue found, go to list mode
 if (isset($_GET['admin-panel'])) {
 	// check if user is admin
-	if ($_SESSION['t1t']['admin']) {
+	if (isAdmin()) {
 		$mode = "admin";
+
+		// get config
+		$config = $db->query("SELECT * FROM config WHERE key='update_info'")->fetchAll();
+		if (count($config) > 0) {
+			$updateInfo = json_decode($config[0]['value'], true);
+		} else {
+			$updateInfo = array();
+		}
 	} else {
 		$mode = '';
 	}
@@ -630,6 +637,18 @@ if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 		$message += "Error getting update info";
 	}
 
+	$updateInfo['current_version'] = $VERSION;
+	$updateInfo['time'] = date("Y-m-d H:i:s");
+
+	// save update info to db
+	// if exists in db table config
+	$updates = $db->query("SELECT * FROM config WHERE key='update_info'")->fetchAll();
+	if (count($updates) > 0) {
+		$db->exec("UPDATE config SET value='" . json_encode($updateInfo) . "' WHERE key='update_info'");
+	} else {
+		$db->exec("INSERT INTO config (key, value, entrytime) values('update_info', '" . json_encode($updateInfo) . "', '" . date("Y-m-d H:i:s") . "')");
+	}
+
 	if (!isset($_GET['admin-panel'])) {
 		header("Location: ?admin-panel&message=" . $message);
 	}
@@ -640,7 +659,7 @@ if (isset($_GET["clearlogs"]) && isAdmin()) {
 	logAction('Logs cleared', 3, 'Logs cleared by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 	header("Location: ?admin-panel&message=Logs cleared");
 }
-	
+
 
 
 if (isset($_GET['message'])) {
@@ -705,75 +724,116 @@ function check_credentials($u = false, $p = false)
 
 	if ($u == '' || $p == '' || !isset($u) || !isset($p) || !$u || !$p) return false;
 
-	$users = $db->query("SELECT * FROM users WHERE username='$u'")->fetchAll();
+	try {
+		$users = $db->query("SELECT * FROM users WHERE username='$u'")->fetchAll();
+	} catch (Exception $e) {
+		// collect error info
+		$error = array(
+			"error" => $e->getMessage(),
+			"line" => $e->getLine(),
+			"file" => $e->getFile(),
+			"trace" => $e->getTraceAsString()
+		);
+		showCriticalError("Database error", $error);
+		die();
+	}
 	if (count($users) == 0) return false;
 
 	$user = $users[0];
 	// if admin is 3, then this account is disabled
 	if ($user['admin'] == 3) {
-		$disabled = "<html>
+?>
+		<html>
+
 		<head>
 			<title>Tiny Issue Tracker</title>
 			<meta name='viewport' content='width=device-width, initial-scale=1'>
 			<style>
-			" . insertCss() . "
-			.container {
-				display: flex;
-				justify-content: center;
-			}
-				hr {
-				margin-top: 10vh;
-				margin-bottom: 10vh;
-			}
-			label{display:block;}
-			body {text-align:center;}
-			form input {width: 100%; font-family:sans-serif;font-size:11px;}
-			form {
-				border: 1px solid var(--border-color);
-				border-radius: 15px;
-				padding: 10px;
-				width: 250px;
-			}
-			.alert {
-				margin: auto;
-				background-color: #f85149;
-				color: white;
-				padding: 8px;
-				border-radius: 15px;
-				width: 300px;
-				text-align: center;
-				display: flex;
-				justify-content: center;
-				align-items: center;
-			}
-
-			@media only screen and (max-width: 600px) {
-				form {
-					width: 100%;
+				<?php echo insertCss(); ?>.container {
+					display: flex;
+					justify-content: center;
 				}
-			}
+
+				hr {
+					margin-top: 10vh;
+					margin-bottom: 10vh;
+				}
+
+				label {
+					display: block;
+				}
+
+				body {
+					text-align: center;
+				}
+
+				form input {
+					width: 100%;
+					font-family: sans-serif;
+					font-size: 11px;
+				}
+
+				form {
+					border: 1px solid var(--border-color);
+					border-radius: 15px;
+					padding: 10px;
+					width: 250px;
+				}
+
+				.alert {
+					margin: auto;
+					background-color: #f85149;
+					color: white;
+					padding: 8px;
+					border-radius: 15px;
+					width: 300px;
+					text-align: center;
+					display: flex;
+					justify-content: center;
+					align-items: center;
+				}
+
+				@media only screen and (max-width: 600px) {
+					form {
+						width: 100%;
+					}
+				}
 			</style>
 		</head>
-								 <body>
-									<h2>$TITLE - Issue Tracker</h2>
-									<br>
-									<br>
 
-									<div class='alert'>
-									<h2>This account is disabled</h2>
-									</div>
-									<p>This account was disabled by the administrator.<br> If you think this is a mistake, please contact the administrator.</p>
-									<hr>
-									<h3>Login as another user</h3>
-									<div class='container'>
-									<form method='POST' action='" . $_SERVER["REQUEST_URI"] . "'>
-									<label>Username</label><input type='text' name='u' />
-								 <label>Password</label><input type='password' name='p' />
-								 <label></label><input type='submit' name='login' value='Login' />
-								 </form>
+		<body>
+			<h2><?php echo $TITLE; ?> - Issue Tracker</h2>
+			<br>
+			<br>
+			<div class='alert'>
+				<h2>This account is disabled</h2>
+			</div>
+			<p>This account was disabled by the administrator.<br> If you think this is a mistake, please contact the administrator.</p>
+			<hr>
+			<h3>Login as another user</h3>
+			<div class='container'>
+				<form method='POST' action='" . $_SERVER["REQUEST_URI"] . "'>
+					<label>Username</label><input type='text' name='u' />
+					<label>Password</label><input type='password' name='p' />
+					<label></label><input type='submit' name='login' value='Login' />
+				</form>
+			</div>
+			<script>
+				if (!window.msgShown) {
+					window.msgShown = !0;
+					let e = ["background: #fedd48", "color: #333", "padding: 10px 20px", "font-size: 16px", "line-height: 1.6", "border-radius: 12px", 'font-family: "Arial", sans-serif', "white-space: pre-line"].join(";");
+					console.log("\n%cPowered by Tiny Issue Tracker", e, '\n\nThe source code is freely available at\nhttps://github.com/JMcrafter26/tiny-issue-tracker\n\nFeel free to check it out and contribute.\nIf you have any questions, feel free to ask me on GitHub. "easterEgg()"'), window.easterEgg = function() {
+						console.log("You found the easter egg! 🥚\n\nYou can be proud of yourself ;)"), setTimeout(function() {
+							window.open("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "_blank")
+						}, 3e3)
+					}
+				}
+			</script>
+		</body>
 
-								 </div></body></html>";
-		die($disabled);
+		</html>
+	<?php
+		die();
 	}
 
 	if (!isset($user['password']) || $user['password'] == '' || $user['password'] == null) {
@@ -867,7 +927,7 @@ function check_first_time()
 								 <body>
 									<h2>$TITLE - Issue Tracker</h2><p>$message</p>
 									<div class='container'>
-									<form method='POST' action='" . $_SERVER["REQUEST_URI"] . "'>
+									<form method='POST' action='?admin-panel'>
 									<label>Username</label><input type='text' value='admin' readonly />
 									<label>Email</label><input type='email' name='email' />
 								 <label>Password</label><input type='password' name='password' />
@@ -875,6 +935,130 @@ function check_first_time()
 								 </form></div></body></html>";
 		die($firstAdminPassword);
 	}
+}
+
+function showCriticalError($message, $details)
+{
+	global $TITLE;
+
+
+	$detailsJson = array_merge(array(
+		'message' => $message,
+		'server' => $_SERVER,
+		'request' => $_REQUEST,
+		'time' => date('Y-m-d H:i:s'),
+	), $details);
+
+	// try to save the details to log file
+	try {
+		$logfile = fopen('tiny-issue-tracker-error.log', 'a');
+		fwrite($logfile, json_encode($details) . "\n");
+		fclose($logfile);
+	} catch (Exception $e) {
+		// 
+	}
+
+	if (isset($details['error'])) {
+		// if it contains an email, censor it
+		if (strpos($details['error'], '@') !== false) {
+			// using regex to find email
+			$details['error'] = preg_replace('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/', 'email', $details['error']);
+		}
+		// if it contains a password, censor it
+		if (strpos($details['error'], 'pass') !== false) {
+			$details['error'] = preg_replace('/pass .*/', 'password: ********', $details['error']);
+		}
+	}
+
+	// show critical error
+	?>
+	<html>
+
+	<head>
+		<title>Tiny Issue Tracker</title>
+		<meta name='viewport' content='width=device-width, initial-scale=1'>
+		<style>
+			<?php echo insertCss(); ?>.container {
+				display: flex;
+				justify-content: center;
+			}
+
+			body {
+				text-align: center;
+			}
+
+			details>summary {
+				list-style: none;
+			}
+
+			details {
+				padding-top: 0;
+			}
+
+			details>summary::-webkit-details-marker {
+				display: none;
+			}
+
+			.alert {
+				margin: auto;
+				background-color: #f85149;
+				color: white;
+				padding: 8px;
+				border-radius: 15px;
+				width: 300px;
+				text-align: center;
+				/* display: flex; */
+				justify-content: center;
+				/* align-items: center; */
+			}
+		</style>
+	</head>
+
+	<body>
+		<h2><?php echo $TITLE; ?> - Issue Tracker</h2>
+		<br>
+		<br>
+
+		<div class='alert'>
+			<h2>:(</h2>
+			<h2>An error occurred</h2>
+		</div>
+		<br>
+		<div>
+			<h3>What to do now?</h3>
+			<hr>
+			<details open>
+				<summary>
+					<h3>As a user</h3>
+				</summary>
+				<p>Contact the administrator and try again later</p>
+				<p>You can also try to <a href='javascript:window.location.reload()'>reload the page</a> or <a href='?logout'>logout</a></p>
+			</details>
+			<details>
+				<summary>
+					<h3>As an System Administrator</h3>
+				</summary>
+				<p>Something went wrong. Here are some details:</p>
+				<p><?php echo $message; ?><br><?php echo $details['error']; ?></p>
+				<p>More details are available in the log file located in the same directory as the script.</p>
+			</details>
+		</div>
+		<script>
+			if (!window.msgShown) {
+				window.msgShown = !0;
+				let e = ["background: #fedd48", "color: #333", "padding: 10px 20px", "font-size: 16px", "line-height: 1.6", "border-radius: 12px", 'font-family: "Arial", sans-serif', "white-space: pre-line"].join(";");
+				console.log("\n%cPowered by Tiny Issue Tracker", e, '\n\nThe source code is freely available at\nhttps://github.com/JMcrafter26/tiny-issue-tracker\n\nFeel free to check it out and contribute.\nIf you have any questions, feel free to ask me on GitHub. "easterEgg()"'), window.easterEgg = function() {
+					console.log("You found the easter egg! 🥚\n\nYou can be proud of yourself ;)"), setTimeout(function() {
+						window.open("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "_blank")
+					}, 3e3)
+				}
+			}
+		</script>
+	</body>
+
+	</html>
+<?php
+	die();
 }
 
 // get column from some table with $id
@@ -1814,7 +1998,6 @@ function insertJquery()
 					<polyline points="9 18 15 12 9 6"></polyline>
 				</svg>
 			</button>
-
 		</div>
 
 		<dialog id="create" style="max-width: 90%;">
@@ -2317,24 +2500,34 @@ function insertJquery()
 					</button>
 
 					<br>
-					<?php
-					if (isset($updateInfo)) {
-						if ($updateInfo['latest'] > $VERSION) { ?>
-							<h4>New update available! <a href="https://github.com/JMcrafter26/tiny-issue-tracker" target="_blank">Update Now</a>
-								<h4>
-								<?php } else { ?>
-									<h4>No updates :)</h4>
-							<?php }
-						} ?>
-							<p>Your version: <?php echo $VERSION; ?><br>
-								<?php if (isset($updateInfo)) { ?>
-									Latest version: <?php echo $updateInfo['latest']; ?><br>
-							<p>Release Notes:<br>
-								<?php echo $updateInfo['changes']; ?>
-							<p>
+					<?php if (isset($updateInfo) && count($updateInfo) > 0) {
+						// if updateinfo time is longer than 1 week, unset it
 
-							<?php } ?>
-							</p>
+							if ($updateInfo['latest'] > $VERSION) { ?>
+								<h4>New update available! <a href="https://github.com/JMcrafter26/tiny-issue-tracker" target="_blank">Update Now</a></h4>
+							<?php } else { 
+						if (isset($updateInfo['time']) && strtotime($updateInfo['time']) > strtotime("-1 week")) { ?>
+								<h4>No updates :)</h4>
+						<?php } else { ?>
+								<h4>Please check for updates to ensure you have the latest features and security updates.</h4>
+						<?php } } ?>
+						<p>This version: <?php echo $VERSION; ?><br>
+							<?php if (isset($updateInfo)) { ?>
+								Latest version: <?php echo $updateInfo['latest']; ?><br>
+						</p>
+						<p>Release Notes:<br>
+							<?php 
+							// replace \n with <br>
+							echo str_replace("\n", "<br>", $updateInfo['notes']);
+							?>
+						</p>
+					<?php } } if (isset($updateInfo['time']) && $updateInfo['time'] != '') { ?>
+					<p style="font-size: 0.8em; opacity: 0.7;">Last checked: <?php echo timeToString($updateInfo['time']); ?> ago (<?php echo $updateInfo['time']; ?>)</p>
+				<?php } else { ?>
+					<p>This version: <?php echo $VERSION; ?></p>
+					<p style="font-size: 0.8em; opacity: 0.7;">Never checked for updates</p>
+				<?php } ?>
+
 
 				</form>
 
@@ -2381,18 +2574,18 @@ function insertJquery()
 									<div class="left">
 										<?php
 										// get the user that made the action
-										if($log['user_id'] == 0) {
+										if ($log['user_id'] == 0) {
 											$user = array('username' => 'System');
 										} else if ($log['user_id'] == -1) {
 											$user = array('username' => 'Guest');
 										} else if ($log['user_id'] == '') {
 											$user = array('username' => '');
 										} else {
-										$user = $db->query("SELECT username FROM users WHERE id = " . $log['user_id'])->fetch();
-										if (!$user) {
-											$user = array('username' => 'Unknown');
+											$user = $db->query("SELECT username FROM users WHERE id = " . $log['user_id'])->fetch();
+											if (!$user) {
+												$user = array('username' => 'Unknown');
+											}
 										}
-									}
 										?>
 										<span><?php echo $user['username']; ?></span> - <span title="<?php echo $log['entrytime']; ?>"><?php echo timeToString($log['entrytime']); ?></span> ago
 									</div>
@@ -2403,18 +2596,22 @@ function insertJquery()
 				</div>
 				<div class="between">
 					<div>
-						<button onclick="window.ajaxify('?admin-panel&page=' + <?php echo $page - 1; ?>);" style="margin-top: 10px; padding-left: 10px; padding-right: 10px;" <?php if ($page == 1) { echo 'disabled'; } ?>>
+						<button onclick="window.ajaxify('?admin-panel&page=' + <?php echo $page - 1; ?>);" style="margin-top: 10px; padding-left: 10px; padding-right: 10px;" <?php if ($page == 1) {
+																																													echo 'disabled';
+																																												} ?>>
 							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left">
 								<line x1="19" y1="12" x2="5" y2="12"></line>
 								<polyline points="12 19 5 12 12 5"></polyline>
 							</svg>
 						</button>
-						<button onclick="window.ajaxify('?admin-panel&page=' + <?php echo $page + 1; ?>);" style="margin-top: 10px; padding-left: 10px; padding-right: 10px;" <?php if ($page == $totalPages) { echo 'disabled'; } ?>>
+						<button onclick="window.ajaxify('?admin-panel&page=' + <?php echo $page + 1; ?>);" style="margin-top: 10px; padding-left: 10px; padding-right: 10px;" <?php if ($page == $totalPages) {
+																																													echo 'disabled';
+																																												} ?>>
 							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-right">
 								<line x1="5" y1="12" x2="19" y2="12"></line>
 								<polyline points="12 5 19 12 12 19"></polyline>
 							</svg>
-					</button>
+						</button>
 					</div>
 					<div>
 						<a href="?admin-panel&clearlogs" class="right btn" style="margin-top: 10px; padding-left: 10px; padding-right: 10px;">
@@ -2530,681 +2727,687 @@ function insertJquery()
 
 		</dialog>
 
-		<div id="footer">
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-zap">
-				<defs>
-					<filter id="sharp-drop-shadow" x="-50%" y="-50%" width="200%" height="200%">
-						<feGaussianBlur in="SourceAlpha" stdDeviation="1" />
-						<feOffset dx="0" dy="0" result="offsetblur" />
-						<feFlood flood-color="#fedd48" />
-						<feComposite in2="offsetblur" operator="in" />
-						<feMerge>
-							<feMergeNode />
-							<feMergeNode in="SourceGraphic" />
-						</feMerge>
-					</filter>
-				</defs>
-				<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-			</svg>
-			Powered by <a href="https://github.com/JMcrafter26/tiny-issue-tracker" alt="Tiny Issue Tracker" target="_blank">Tiny Issue Tracker</a><?php if ($_SESSION['t1t']['admin'] == 1) {
-																																						echo ' V' . $VERSION;
-																																					} ?>
-		</div>
+		<?php if ($SHOWFOOTER) { ?>
+			<div id="footer">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-zap">
+					<defs>
+						<filter id="sharp-drop-shadow" x="-50%" y="-50%" width="200%" height="200%">
+							<feGaussianBlur in="SourceAlpha" stdDeviation="1" />
+							<feOffset dx="0" dy="0" result="offsetblur" />
+							<feFlood flood-color="#fedd48" />
+							<feComposite in2="offsetblur" operator="in" />
+							<feMerge>
+								<feMergeNode />
+								<feMergeNode in="SourceGraphic" />
+							</feMerge>
+						</filter>
+					</defs>
+					<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+				</svg>
+				Powered by <a href="https://github.com/JMcrafter26/tiny-issue-tracker" alt="Tiny Issue Tracker" target="_blank">Tiny Issue Tracker</a><?php if ($_SESSION['t1t']['admin'] == 1) {
+																																							echo ' V' . $VERSION;
+																																						} ?>
+			</div>
 	</div>
+<?php } ?>
 
 
-	<script>
-		! function(e, n) {
-			"object" == typeof exports && "undefined" != typeof module ? module.exports = n() : "function" == typeof define && define.amd ? define(n) : (e = e || self).snarkdown = n()
-		}(this, function() {
-			var e = {
-				"": ["<em>", "</em>"],
-				_: ["<strong>", "</strong>"],
-				"*": ["<strong>", "</strong>"],
-				"~": ["<s>", "</s>"],
-				"\n": ["<br />"],
-				" ": ["<br />"],
-				"-": ["<hr />"]
-			};
-
-			function n(e) {
-				return e.replace(RegExp("^" + (e.match(/^(\t| )+/) || "")[0], "gm"), "")
-			}
-
-			function r(e) {
-				return (e + "").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-			}
-			return function t(o, a) {
-				var c, s, l, g, u, p = /((?:^|\n+)(?:\n---+|\* \*(?: \*)+)\n)|(?:^``` *(\w*)\n([\s\S]*?)\n```$)|((?:(?:^|\n+)(?:\t|  {2,}).+)+\n*)|((?:(?:^|\n)([>*+-]|\d+\.)\s+.*)+)|(?:!\[([^\]]*?)\]\(([^)]+?)\))|(\[)|(\](?:\(([^)]+?)\))?)|(?:(?:^|\n+)([^\s].*)\n(-{3,}|={3,})(?:\n+|$))|(?:(?:^|\n+)(#{1,6})\s*(.+)(?:\n+|$))|(?:`([^`].*?)`)|(  \n\n*|\n{2,}|__|\*\*|[_*]|~~)/gm,
-					f = [],
-					i = "",
-					d = a || {},
-					m = 0;
-
-				function h(n) {
-					var r = e[n[1] || ""],
-						t = f[f.length - 1] == n;
-					return r ? r[1] ? (t ? f.pop() : f.push(n), r[0 | t]) : r[0] : n
-				}
-
-				function $() {
-					for (var e = ""; f.length;) e += h(f[f.length - 1]);
-					return e
-				}
-				for (o = o.replace(/^\[(.+?)\]:\s*(.+)$/gm, function(e, n, r) {
-						return d[n.toLowerCase()] = r, ""
-					}).replace(/^\n+|\n+$/g, ""); l = p.exec(o);) s = o.substring(m, l.index), m = p.lastIndex, c = l[0], s.match(/[^\\](\\\\)*\\$/) || ((u = l[3] || l[4]) ? c = '<pre class="code ' + (l[4] ? "poetry" : l[2].toLowerCase()) + '"><code' + (l[2] ? ' class="language-' + l[2].toLowerCase() + '"' : "") + ">" + n(r(u).replace(/^\n+|\n+$/g, "")) + "</code></pre>" : (u = l[6]) ? (u.match(/\./) && (l[5] = l[5].replace(/^\d+/gm, "")), g = t(n(l[5].replace(/^\s*[>*+.-]/gm, ""))), ">" == u ? u = "blockquote" : (u = u.match(/\./) ? "ol" : "ul", g = g.replace(/^(.*)(\n|$)/gm, "<li>$1</li>")), c = "<" + u + ">" + g + "</" + u + ">") : l[8] ? c = '<img src="' + r(l[8]) + '" alt="' + r(l[7]) + '">' : l[10] ? (i = i.replace("<a>", '<a href="' + r(l[11] || d[s.toLowerCase()]) + '">'), c = $() + "</a>") : l[9] ? c = "<a>" : l[12] || l[14] ? c = "<" + (u = "h" + (l[14] ? l[14].length : l[13] > "=" ? 1 : 2)) + ">" + t(l[12] || l[15], d) + "</" + u + ">" : l[16] ? c = "<code>" + r(l[16]) + "</code>" : (l[17] || l[1]) && (c = h(l[17] || "--"))), i += s, i += c;
-				return (i + o.substring(m) + $()).replace(/^\n+|\n+$/g, "")
-			}
-		});
-	</script>
-	<script>
-		function deleteModal(e) {
-			const deleteUrl = e.dataset.deleteurl;
-			const confirmDeleteButton = document.getElementById('confirmDeleteButton');
-			confirmDeleteButton.href = deleteUrl;
-
-			document.getElementById('confirmDelete').showModal();
-		}
-
-		function loaderIcon() {
-			return '<svg class="loaderIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-loader"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>';
-		}
-
-		function showLoader(e) {
-			var loader = document.createElement('div');
-			loader.style.position = 'absolute';
-			loader.style.top = '0';
-			loader.style.left = '0';
-			loader.style.width = '100%';
-			// if a child contains name createcomment, make the loader 90% height
-			if (e.querySelector('[name="createcomment"]')) {
-				loader.style.height = '90%';
-				loader.style.borderRadius = '12px';
-			} else {
-				loader.style.height = '100%';
-			}
-			loader.style.backgroundColor = 'rgba(0,0,0,0.2)';
-			loader.style.zIndex = '1000';
-			loader.style.display = 'flex';
-			loader.style.justifyContent = 'center';
-			loader.style.alignItems = 'center';
-			loader.innerHTML = loaderIcon();
-
-			// get nearest form
-			e = e.closest('form');
-
-			if (e.querySelector('[name="createcomment"]')) {
-
-				e.appendChild(loader);
-			} else {
-				e.parentElement.appendChild(loader);
-			}
-
-
-		}
-
-		function copy_text(str) {
-			const el = document.createElement("textarea");
-			el.value = str;
-			el.setAttribute("readonly", "");
-			el.style.position = "absolute";
-			el.style.left = '-9999px';
-			document.body.appendChild(el);
-			el.select();
-			document.execCommand("copy");
-			document.body.removeChild(el);
+<script>
+	! function(e, n) {
+		"object" == typeof exports && "undefined" != typeof module ? module.exports = n() : "function" == typeof define && define.amd ? define(n) : (e = e || self).snarkdown = n()
+	}(this, function() {
+		var e = {
+			"": ["<em>", "</em>"],
+			_: ["<strong>", "</strong>"],
+			"*": ["<strong>", "</strong>"],
+			"~": ["<s>", "</s>"],
+			"\n": ["<br />"],
+			" ": ["<br />"],
+			"-": ["<hr />"]
 		};
 
-		function convertMarkdown() {
-			// convert the comments to markdown
-			const comments = document.querySelectorAll('[data-markdown]');
-			if (!comments) {
-				return;
-			}
-			comments.forEach(comment => {
-				const commentId = comment.dataset.comment;
-				const commentText = comment.innerHTML;
-				const markdown = snarkdown(commentText);
-				comment.innerHTML = markdown;
-				retarget(comment);
-			});
+		function n(e) {
+			return e.replace(RegExp("^" + (e.match(/^(\t| )+/) || "")[0], "gm"), "")
 		}
 
-		function retarget(el) {
-			if (el.nodeName === 'A' && !el.target && el.origin !== location.origin) {
-				el.setAttribute('target', '_blank');
-				el.setAttribute('rel', 'noreferrer noopener');
-			}
-			for (let i = el.children.length; i--;) {
-				retarget(el.children[i])
-			}
+		function r(e) {
+			return (e + "").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+		}
+		return function t(o, a) {
+			var c, s, l, g, u, p = /((?:^|\n+)(?:\n---+|\* \*(?: \*)+)\n)|(?:^``` *(\w*)\n([\s\S]*?)\n```$)|((?:(?:^|\n+)(?:\t|  {2,}).+)+\n*)|((?:(?:^|\n)([>*+-]|\d+\.)\s+.*)+)|(?:!\[([^\]]*?)\]\(([^)]+?)\))|(\[)|(\](?:\(([^)]+?)\))?)|(?:(?:^|\n+)([^\s].*)\n(-{3,}|={3,})(?:\n+|$))|(?:(?:^|\n+)(#{1,6})\s*(.+)(?:\n+|$))|(?:`([^`].*?)`)|(  \n\n*|\n{2,}|__|\*\*|[_*]|~~)/gm,
+				f = [],
+				i = "",
+				d = a || {},
+				m = 0;
 
-			// check for plain text links, and convert them to links, but only if they are not inside a code block and not already a link
-			// regex to match urls
-			const urlRegex = /((https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*))/gi;
-			if (el.nodeName !== 'CODE' && el.nodeName !== 'A') {
-				// check if the link is not already a link or image
-				if (!el.querySelector('a') && !el.querySelector('img')) {
-					el.innerHTML = el.innerHTML.replace(urlRegex, '<a href="$1" target="_blank" rel="noreferrer noopener">$1</a>');
-				}
+			function h(n) {
+				var r = e[n[1] || ""],
+					t = f[f.length - 1] == n;
+				return r ? r[1] ? (t ? f.pop() : f.push(n), r[0 | t]) : r[0] : n
 			}
 
-			// for images, add the image class
-			const images = el.querySelectorAll('img');
-			images.forEach(image => {
-				image.classList.add('markdownImage');
-				// check if image is the only child of the parent, if so, center the image
-				if (image.parentElement.children.length === 1) {
-					// image.parentElement.style.textAlign = 'center';
-				}
-			});
+			function $() {
+				for (var e = ""; f.length;) e += h(f[f.length - 1]);
+				return e
+			}
+			for (o = o.replace(/^\[(.+?)\]:\s*(.+)$/gm, function(e, n, r) {
+					return d[n.toLowerCase()] = r, ""
+				}).replace(/^\n+|\n+$/g, ""); l = p.exec(o);) s = o.substring(m, l.index), m = p.lastIndex, c = l[0], s.match(/[^\\](\\\\)*\\$/) || ((u = l[3] || l[4]) ? c = '<pre class="code ' + (l[4] ? "poetry" : l[2].toLowerCase()) + '"><code' + (l[2] ? ' class="language-' + l[2].toLowerCase() + '"' : "") + ">" + n(r(u).replace(/^\n+|\n+$/g, "")) + "</code></pre>" : (u = l[6]) ? (u.match(/\./) && (l[5] = l[5].replace(/^\d+/gm, "")), g = t(n(l[5].replace(/^\s*[>*+.-]/gm, ""))), ">" == u ? u = "blockquote" : (u = u.match(/\./) ? "ol" : "ul", g = g.replace(/^(.*)(\n|$)/gm, "<li>$1</li>")), c = "<" + u + ">" + g + "</" + u + ">") : l[8] ? c = '<img src="' + r(l[8]) + '" alt="' + r(l[7]) + '">' : l[10] ? (i = i.replace("<a>", '<a href="' + r(l[11] || d[s.toLowerCase()]) + '">'), c = $() + "</a>") : l[9] ? c = "<a>" : l[12] || l[14] ? c = "<" + (u = "h" + (l[14] ? l[14].length : l[13] > "=" ? 1 : 2)) + ">" + t(l[12] || l[15], d) + "</" + u + ">" : l[16] ? c = "<code>" + r(l[16]) + "</code>" : (l[17] || l[1]) && (c = h(l[17] || "--"))), i += s, i += c;
+			return (i + o.substring(m) + $()).replace(/^\n+|\n+$/g, "")
+		}
+	});
+</script>
+<script>
+	function deleteModal(e) {
+		const deleteUrl = e.dataset.deleteurl;
+		const confirmDeleteButton = document.getElementById('confirmDeleteButton');
+		confirmDeleteButton.href = deleteUrl;
 
+		document.getElementById('confirmDelete').showModal();
+	}
+
+	function loaderIcon() {
+		return '<svg class="loaderIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-loader"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>';
+	}
+
+	function showLoader(e) {
+		var loader = document.createElement('div');
+		loader.style.position = 'absolute';
+		loader.style.top = '0';
+		loader.style.left = '0';
+		loader.style.width = '100%';
+		// if a child contains name createcomment, make the loader 90% height
+		if (e.querySelector('[name="createcomment"]')) {
+			loader.style.height = '90%';
+			loader.style.borderRadius = '12px';
+		} else {
+			loader.style.height = '100%';
+		}
+		loader.style.backgroundColor = 'rgba(0,0,0,0.2)';
+		loader.style.zIndex = '1000';
+		loader.style.display = 'flex';
+		loader.style.justifyContent = 'center';
+		loader.style.alignItems = 'center';
+		loader.innerHTML = loaderIcon();
+
+		// get nearest form
+		e = e.closest('form');
+
+		if (e.querySelector('[name="createcomment"]')) {
+
+			e.appendChild(loader);
+		} else {
+			e.parentElement.appendChild(loader);
 		}
 
-		function showCtxMenu(e = false, issueId = false, allowDelete = false, isUser = false, isLink = false) {
-			// prevent default context menu
-			if (e) {
-				e.preventDefault();
+
+	}
+
+	function copy_text(str) {
+		const el = document.createElement("textarea");
+		el.value = str;
+		el.setAttribute("readonly", "");
+		el.style.position = "absolute";
+		el.style.left = '-9999px';
+		document.body.appendChild(el);
+		el.select();
+		document.execCommand("copy");
+		document.body.removeChild(el);
+	};
+
+	function convertMarkdown() {
+		// convert the comments to markdown
+		const comments = document.querySelectorAll('[data-markdown]');
+		if (!comments) {
+			return;
+		}
+		comments.forEach(comment => {
+			const commentId = comment.dataset.comment;
+			const commentText = comment.innerHTML;
+			const markdown = snarkdown(commentText);
+			comment.innerHTML = markdown;
+			retarget(comment);
+		});
+	}
+
+	function retarget(el) {
+		if (el.nodeName === 'A' && !el.target && el.origin !== location.origin) {
+			el.setAttribute('target', '_blank');
+			el.setAttribute('rel', 'noreferrer noopener');
+		}
+		for (let i = el.children.length; i--;) {
+			retarget(el.children[i])
+		}
+
+		// check for plain text links, and convert them to links, but only if they are not inside a code block and not already a link
+		// regex to match urls
+		const urlRegex = /((https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*))/gi;
+		if (el.nodeName !== 'CODE' && el.nodeName !== 'A') {
+			// check if the link is not already a link or image
+			if (!el.querySelector('a') && !el.querySelector('img')) {
+				el.innerHTML = el.innerHTML.replace(urlRegex, '<a href="$1" target="_blank" rel="noreferrer noopener">$1</a>');
 			}
+		}
 
-
-
-			// get the context menu element
-			var ctxmenu = document.getElementById('ctxmenuTemplate');
-
-			var optionCount = 1;
-
-			if (!ctxmenu || !ctxmenu.querySelectorAll('[data-ctxAction]').length) {
-				return;
+		// for images, add the image class
+		const images = el.querySelectorAll('img');
+		images.forEach(image => {
+			image.classList.add('markdownImage');
+			// check if image is the only child of the parent, if so, center the image
+			if (image.parentElement.children.length === 1) {
+				// image.parentElement.style.textAlign = 'center';
 			}
+		});
 
-			var ctxActions = ctxmenu.querySelectorAll('[data-ctxAction]');
+	}
+
+	function showCtxMenu(e = false, issueId = false, allowDelete = false, isUser = false, isLink = false) {
+		// prevent default context menu
+		if (e) {
+			e.preventDefault();
+		}
+
+
+
+		// get the context menu element
+		var ctxmenu = document.getElementById('ctxmenuTemplate');
+
+		var optionCount = 1;
+
+		if (!ctxmenu || !ctxmenu.querySelectorAll('[data-ctxAction]').length) {
+			return;
+		}
+
+		var ctxActions = ctxmenu.querySelectorAll('[data-ctxAction]');
 
 
 
 
-			if (issueId && !isUser && !isLink) {
-				// get all ctx actions in the context menu
-				// loop through all ctx actions
-				ctxActions.forEach(ctxAction => {
-					// get the action
-					var action = ctxAction.dataset.ctxaction;
-					if (action == 'edit') {
-						optionCount++;
-						ctxAction.href = `?editissue&id=${issueId}`;
+		if (issueId && !isUser && !isLink) {
+			// get all ctx actions in the context menu
+			// loop through all ctx actions
+			ctxActions.forEach(ctxAction => {
+				// get the action
+				var action = ctxAction.dataset.ctxaction;
+				if (action == 'edit') {
+					optionCount++;
+					ctxAction.href = `?editissue&id=${issueId}`;
+					ctxAction.style.display = 'block';
+				} else if (action == 'delete') {
+					// if allow delete is false, hide the delete button
+					if (allowDelete == 'false' || !allowDelete) {
+						ctxAction.style.display = 'none';
+					} else {
 						ctxAction.style.display = 'block';
-					} else if (action == 'delete') {
-						// if allow delete is false, hide the delete button
-						if (allowDelete == 'false' || !allowDelete) {
-							ctxAction.style.display = 'none';
+						optionCount++;
+					}
+				} else if (action == 'newtab') {
+					optionCount++;
+					ctxAction.href = `?id=${issueId}`;
+					ctxAction.target = '_blank';
+					ctxAction.style.display = 'block';
+				} else if (action == 'new') {
+					ctxAction.style.display = 'none';
+				} else {
+					ctxAction.style.display = 'none';
+				}
+			});
+
+			const confirmDeleteButton = document.getElementById('confirmDeleteButton');
+			confirmDeleteButton.href = `?deleteissue&id=${issueId}`;
+			document.getElementById('submitFormBtn').innerHTML = 'Save';
+
+		} else if (isLink) {
+			ctxActions.forEach(ctxAction => {
+				if (ctxAction.dataset.ctxaction == 'newtab') {
+					optionCount++;
+					// get the href of the link
+					ctxAction.href = isLink;
+					ctxAction.target = '_blank';
+					ctxAction.style.display = 'block';
+				} else if (ctxAction.dataset.ctxaction == 'copyLink') {
+					optionCount++;
+					ctxAction.style.display = 'block';
+					ctxAction.dataset.link = isLink;
+				} else {
+					ctxAction.style.display = 'none';
+				}
+			});
+		} else if (isUser) {
+			user = JSON.parse(isUser);
+			console.log(user);
+			ctxActions.forEach(ctxAction => {
+				if (allowDelete == 'true') {
+					if (ctxAction.dataset.ctxaction == 'delete') {
+						ctxAction.style.display = 'block';
+						optionCount++;
+					} else if (ctxAction.dataset.ctxaction == 'edit') {
+						ctxAction.style.display = 'block';
+						optionCount++;
+						ctxAction.onclick = function() {
+							var userInfo = JSON.parse(isUser);
+							document.querySelector('[name="username"]').value = userInfo.username;
+							document.querySelector('[name="email"]').value = userInfo.email;
+							document.querySelector('[name="status"]').value = userInfo.admin;
+							document.getElementById('create').showModal();
+						};
+					} else if (ctxAction.dataset.ctxaction == 'ban') {
+						ctxAction.style.display = 'block';
+						optionCount++;
+						// check if user admin is 3, if so, change the text to unban
+						if (user.admin == 3) {
+							// if innerHTML contains Unban, do not replace it
+							if (!ctxAction.innerHTML.includes('Unban')) {
+								ctxAction.innerHTML = ctxAction.innerHTML.replace('Ban', 'Unban');
+							}
+							ctxAction.style.color = '#4caf50';
+							ctxAction.style.display = 'block';
+							ctxAction.onclick = '';
+							ctxAction.href = `?unbanuser&userId=${user.id}`;
+
 						} else {
 							ctxAction.style.display = 'block';
-							optionCount++;
-						}
-					} else if (action == 'newtab') {
-						optionCount++;
-						ctxAction.href = `?id=${issueId}`;
-						ctxAction.target = '_blank';
-						ctxAction.style.display = 'block';
-					} else if (action == 'new') {
-						ctxAction.style.display = 'none';
-					} else {
-						ctxAction.style.display = 'none';
-					}
-				});
-
-				const confirmDeleteButton = document.getElementById('confirmDeleteButton');
-				confirmDeleteButton.href = `?deleteissue&id=${issueId}`;
-				document.getElementById('submitFormBtn').innerHTML = 'Save';
-
-			} else if (isLink) {
-				ctxActions.forEach(ctxAction => {
-					if (ctxAction.dataset.ctxaction == 'newtab') {
-						optionCount++;
-						// get the href of the link
-						ctxAction.href = isLink;
-						ctxAction.target = '_blank';
-						ctxAction.style.display = 'block';
-					} else if (ctxAction.dataset.ctxaction == 'copyLink') {
-						optionCount++;
-						ctxAction.style.display = 'block';
-						ctxAction.dataset.link = isLink;
-					} else {
-						ctxAction.style.display = 'none';
-					}
-				});
-			} else if (isUser) {
-				user = JSON.parse(isUser);
-				console.log(user);
-				ctxActions.forEach(ctxAction => {
-					if (allowDelete == 'true') {
-						if (ctxAction.dataset.ctxaction == 'delete') {
-							ctxAction.style.display = 'block';
-							optionCount++;
-						} else if (ctxAction.dataset.ctxaction == 'edit') {
-							ctxAction.style.display = 'block';
-							optionCount++;
+							ctxAction.innerHTML = ctxAction.innerHTML.replace('Unban', 'Ban');
+							ctxAction.style.color = '#fedd48';
+							ctxAction.href = '#';
 							ctxAction.onclick = function() {
 								var userInfo = JSON.parse(isUser);
-								document.querySelector('[name="username"]').value = userInfo.username;
-								document.querySelector('[name="email"]').value = userInfo.email;
-								document.querySelector('[name="status"]').value = userInfo.admin;
-								document.getElementById('create').showModal();
+								document.getElementById('confirmBan').showModal();
 							};
-						} else if (ctxAction.dataset.ctxaction == 'ban') {
-							ctxAction.style.display = 'block';
-							optionCount++;
-							// check if user admin is 3, if so, change the text to unban
-							if (user.admin == 3) {
-								// if innerHTML contains Unban, do not replace it
-								if (!ctxAction.innerHTML.includes('Unban')) {
-									ctxAction.innerHTML = ctxAction.innerHTML.replace('Ban', 'Unban');
-								}
-								ctxAction.style.color = '#4caf50';
-								ctxAction.style.display = 'block';
-								ctxAction.onclick = '';
-								ctxAction.href = `?unbanuser&userId=${user.id}`;
-
-							} else {
-								ctxAction.style.display = 'block';
-								ctxAction.innerHTML = ctxAction.innerHTML.replace('Unban', 'Ban');
-								ctxAction.style.color = '#fedd48';
-								ctxAction.href = '#';
-								ctxAction.onclick = function() {
-									var userInfo = JSON.parse(isUser);
-									document.getElementById('confirmBan').showModal();
-								};
-							}
-						} else {
-							ctxAction.style.display = 'none';
 						}
 					} else {
-						if (ctxAction.dataset.ctxaction == 'new') {
-							ctxAction.style.display = 'block';
-							optionCount++;
-						} else {
-							ctxAction.style.display = 'none';
-						}
-					}
-				});
-
-				document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}`;
-				document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}`;
-				// change submitFormBtn to edit
-				document.getElementById('submitFormBtn').innerHTML = 'Save';
-
-
-			} else {
-				ctxActions.forEach(ctxAction => {
-					if (ctxAction.dataset.ctxaction == 'refresh') {
-						if (window.location.search.includes('id')) {
-							ctxAction.style.display = 'block';
-						} else {
-							ctxAction.style.display = 'none';
-						}
-					} else if (ctxAction.dataset.ctxaction != 'new') {
 						ctxAction.style.display = 'none';
-
-					} else {
-						// check if page is issue page, if so, rename the new button to edit
-						// check if parameter id in url is set
-
-						if (window.location.search.includes('id')) {
-							ctxAction.style.display = 'none';
-						} else {
-							ctxAction.style.display = 'block';
-						}
 					}
-				});
-
-				document.getElementById('submitFormBtn').innerHTML = 'Create';
-			}
-
-			// based on the option count, add margin-bottom to the context menu
-			// reset the margin
-			const ctxmenuItems = ctxmenu.querySelectorAll('a');
-			ctxmenuItems.forEach(ctxmenuItem => {
-				ctxmenuItem.style.marginBottom = '0';
+				} else {
+					if (ctxAction.dataset.ctxaction == 'new') {
+						ctxAction.style.display = 'block';
+						optionCount++;
+					} else {
+						ctxAction.style.display = 'none';
+					}
+				}
 			});
 
-			if (optionCount > 1) {
-				ctxmenuItems.forEach(ctxmenuItem => {
-					ctxmenuItem.style.marginBottom = '5px';
-				});
-				// last item should not have margin
-				ctxmenuItems[optionCount - 1].style.marginBottom = '2px';
-			}
-
-			// alert(optionCount);
+			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}`;
+			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}`;
+			// change submitFormBtn to edit
+			document.getElementById('submitFormBtn').innerHTML = 'Save';
 
 
-			// set the position of the context menu
-			ctxmenu.style.top = `${e.clientY}px`;
-			ctxmenu.style.left = `${e.clientX}px`;
-
-			// show the context menu
-			ctxmenu.style.display = 'block';
-
-			// hide the context menu when clicked outside
-			document.addEventListener('click', hideCtxMenu);
-		}
-
-
-		function hideCtxMenu() {
-			const ctxmenu = document.getElementById('ctxmenuTemplate');
-			ctxmenu.style.display = 'none';
-			document.removeEventListener('click', hideCtxMenu);
-		}
-
-		function showMobileCtxMenu(target) {
-			// alert('long press on ' + target.dataset.issueid);
-			// showCtxMenu(false, target.dataset.issueid, target.dataset.allowdelete);
-			var mobileCtx = document.getElementById('mobileCtxmenuTemplate');
-
-			// inside get the elements with data-ctxAction
-			var ctxActions = mobileCtx.querySelectorAll('[data-ctxAction]');
-
-			// check if target is a user
-			var user = false;
-			if (target.dataset.userinfo) {
-				user = JSON.parse(target.dataset.userinfo);
-			}
-			if (user) {
-				// loop through all ctx actions
-				ctxActions.forEach(ctxAction => {
-					// get the action
-					var action = ctxAction.dataset.ctxaction;
-					// check if allow delete is true
-					if (target.dataset.allowdelete == 'true') {
-						if (action == 'edit') {
-							ctxAction.style.display = 'block';
-							ctxAction.onclick = function() {
-								document.querySelector('[name="username"]').value = user.username;
-								document.querySelector('[name="email"]').value = user.email;
-								document.querySelector('[name="status"]').value = user.admin;
-								document.getElementById('create').showModal();
-							};
-						} else if (action == 'delete') {
-							ctxAction.style.display = 'block';
-							ctxAction.onclick = function() {
-								document.getElementById('confirmDelete').showModal();
-							};
-						} else if (action == 'ban') {
-							ctxAction.style.display = 'block';
-							// check if user admin is 3, if so, change the text to unban
-							if (user.admin == 3) {
-								// if innerHTML contains Unban, do not replace it
-								if (!ctxAction.innerHTML.includes('Unban')) {
-									ctxAction.innerHTML = ctxAction.innerHTML.replace('Ban', 'Unban');
-								}
-								ctxAction.style.color = 'var(--text-main)';
-								ctxAction.style.backgroundColor = '#4caf50';
-								ctxAction.style.display = 'block';
-								ctxAction.onclick = '';
-								ctxAction.href = `?unbanuser&userId=${user.id}`;
-
-							} else {
-								ctxAction.style.display = 'block';
-								ctxAction.innerHTML = ctxAction.innerHTML.replace('Unban', 'Ban');
-								ctxAction.style.backgroundColor = '#fedd48';
-								ctxAction.style.color = '#666';
-								ctxAction.href = '#';
-								ctxAction.onclick = function() {
-									document.getElementById('confirmBan').showModal();
-								};
-							}
-						} else {
-							ctxAction.style.display = 'none';
-						}
+		} else {
+			ctxActions.forEach(ctxAction => {
+				if (ctxAction.dataset.ctxaction == 'refresh') {
+					if (window.location.search.includes('id')) {
+						ctxAction.style.display = 'block';
 					} else {
 						ctxAction.style.display = 'none';
 					}
-				});
+				} else if (ctxAction.dataset.ctxaction != 'new') {
+					ctxAction.style.display = 'none';
 
-				if (target.dataset.allowdelete != 'true') {
-					// hide the dialog
-					document.getElementById('mobileCtxmenuTemplate').close();
-					return;
+				} else {
+					// check if page is issue page, if so, rename the new button to edit
+					// check if parameter id in url is set
+
+					if (window.location.search.includes('id')) {
+						ctxAction.style.display = 'none';
+					} else {
+						ctxAction.style.display = 'block';
+					}
 				}
+			});
 
-				document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}`;
-				document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}`;
-				// change submitFormBtn to edit
-				document.getElementById('submitFormBtn').innerHTML = 'Save';
-			} else {
-				// loop through all ctx actions
-				ctxActions.forEach(ctxAction => {
-					if (ctxAction.dataset.ctxaction == 'edit') {
-						ctxAction.href = `?editissue&id=${target.dataset.issueid}`;
-					} else if (ctxAction.dataset.ctxaction == 'delete') {
-						if (target.dataset.allowdelete == true) {
-							ctxAction.style.display = 'flex';
-							document.getElementById('confirmDeleteButton').href = `?deleteissue&id=${target.dataset.issueid}`;
+			document.getElementById('submitFormBtn').innerHTML = 'Create';
+		}
+
+		// based on the option count, add margin-bottom to the context menu
+		// reset the margin
+		const ctxmenuItems = ctxmenu.querySelectorAll('a');
+		ctxmenuItems.forEach(ctxmenuItem => {
+			ctxmenuItem.style.marginBottom = '0';
+		});
+
+		if (optionCount > 1) {
+			ctxmenuItems.forEach(ctxmenuItem => {
+				ctxmenuItem.style.marginBottom = '5px';
+			});
+			// last item should not have margin
+			ctxmenuItems[optionCount - 1].style.marginBottom = '2px';
+		}
+
+		// alert(optionCount);
+
+
+		// set the position of the context menu
+		ctxmenu.style.top = `${e.clientY}px`;
+		ctxmenu.style.left = `${e.clientX}px`;
+
+		// show the context menu
+		ctxmenu.style.display = 'block';
+
+		// hide the context menu when clicked outside
+		document.addEventListener('click', hideCtxMenu);
+	}
+
+
+	function hideCtxMenu() {
+		const ctxmenu = document.getElementById('ctxmenuTemplate');
+		ctxmenu.style.display = 'none';
+		document.removeEventListener('click', hideCtxMenu);
+	}
+
+	function showMobileCtxMenu(target) {
+		// alert('long press on ' + target.dataset.issueid);
+		// showCtxMenu(false, target.dataset.issueid, target.dataset.allowdelete);
+		var mobileCtx = document.getElementById('mobileCtxmenuTemplate');
+
+		// inside get the elements with data-ctxAction
+		var ctxActions = mobileCtx.querySelectorAll('[data-ctxAction]');
+
+		// check if target is a user
+		var user = false;
+		if (target.dataset.userinfo) {
+			user = JSON.parse(target.dataset.userinfo);
+		}
+		if (user) {
+			// loop through all ctx actions
+			ctxActions.forEach(ctxAction => {
+				// get the action
+				var action = ctxAction.dataset.ctxaction;
+				// check if allow delete is true
+				if (target.dataset.allowdelete == 'true') {
+					if (action == 'edit') {
+						ctxAction.style.display = 'block';
+						ctxAction.onclick = function() {
+							document.querySelector('[name="username"]').value = user.username;
+							document.querySelector('[name="email"]').value = user.email;
+							document.querySelector('[name="status"]').value = user.admin;
+							document.getElementById('create').showModal();
+						};
+					} else if (action == 'delete') {
+						ctxAction.style.display = 'block';
+						ctxAction.onclick = function() {
+							document.getElementById('confirmDelete').showModal();
+						};
+					} else if (action == 'ban') {
+						ctxAction.style.display = 'block';
+						// check if user admin is 3, if so, change the text to unban
+						if (user.admin == 3) {
+							// if innerHTML contains Unban, do not replace it
+							if (!ctxAction.innerHTML.includes('Unban')) {
+								ctxAction.innerHTML = ctxAction.innerHTML.replace('Ban', 'Unban');
+							}
+							ctxAction.style.color = 'var(--text-main)';
+							ctxAction.style.backgroundColor = '#4caf50';
+							ctxAction.style.display = 'block';
+							ctxAction.onclick = '';
+							ctxAction.href = `?unbanuser&userId=${user.id}`;
+
 						} else {
-							ctxAction.style.display = 'none';
-							document.getElementById('confirmDeleteButton').href = '#';
+							ctxAction.style.display = 'block';
+							ctxAction.innerHTML = ctxAction.innerHTML.replace('Unban', 'Ban');
+							ctxAction.style.backgroundColor = '#fedd48';
+							ctxAction.style.color = '#666';
+							ctxAction.href = '#';
+							ctxAction.onclick = function() {
+								document.getElementById('confirmBan').showModal();
+							};
 						}
-					} else if (ctxAction.dataset.ctxaction == 'newtab') {
-						ctxAction.href = `?id=${target.dataset.issueid}`;
-						ctxAction.target = '_blank';
 					} else {
 						ctxAction.style.display = 'none';
 					}
-				});
+				} else {
+					ctxAction.style.display = 'none';
+				}
+			});
 
-				document.getElementById('submitFormBtn').innerHTML = 'Create';
-			}
-
-			mobileCtx.showModal();
-		}
-
-		function highlightComment() {
-			// check if url contains hash
-			if (!window.location.hash) {
+			if (target.dataset.allowdelete != 'true') {
+				// hide the dialog
+				document.getElementById('mobileCtxmenuTemplate').close();
 				return;
 			}
 
-			const commentId = window.location.hash;
-
-			const highlitedComments = document.querySelectorAll('.highlightedComment');
-			highlitedComments.forEach(highlitedComment => {
-				highlitedComment.classList.remove('highlightedComment');
-			});
-
-			const comment = document.querySelector(commentId);
-			if (comment) {
-				comment.classList.add('highlightedComment');
-				// scroll to the comment (smooth)
-				comment.scrollIntoView({
-					behavior: 'smooth'
-				});
-
-				// add eventlistener to remove the class after user clicks on the comment
-				document.addEventListener('click', function() {
-					comment.classList.remove('highlightedComment');
-				});
-
-				// after 5 seconds, remove the class, transition smoothly
-				setTimeout(function() {
-					comment.classList.remove('highlightedComment');
-				}, 2000);
-			}
-		}
-
-		function resetTips() {
-			localStorage.setItem('tipCount', '0');
-			localStorage.setItem('hideTips', 'false');
-			showTips();
-		}
-
-		function showTips() {
-			let tipsLength = document.querySelectorAll('.tip').length;
-			// add tipCount to local storage
-			if (localStorage.getItem('tipCount') == null) {
-				localStorage.setItem('tipCount', '0');
-			}
-			// if in local storage is set hideTips, hide the tips or tipCount is grater than 10
-			if (localStorage.getItem('hideTips') != 'true' && parseInt(localStorage.getItem('tipCount')) < (tipsLength * 2.5)) {
-				document.querySelector('.tips').classList.remove('hide');
-			}
-
-
-			document.querySelector('#closeTips').addEventListener('click', () => {
-				document.querySelector('.tips').classList.add('hide');
-				localStorage.setItem('hideTips', 'true');
-			});
-
-
-			let tipCount = parseInt(localStorage.getItem('tipCount')) || 0;
-			// Increment tipCount in localStorage for the next time
-			localStorage.setItem('tipCount', tipCount + 1);
-
-
-			// Calculate modulus only when deciding which tip to show
-			let currentTip = (tipCount % tipsLength) + 1;
-			console.log(currentTip);
-			document.querySelector('.tipNumber').innerText = currentTip;
-			// show the current tip
-			document.querySelector('.tip[data-tip="' + currentTip + '"]').classList.add('active');
-
-			function changeTip(direction) {
-				const tips = document.querySelectorAll('.tip');
-				let activeTip = document.querySelector('.tip.active');
-				let tipNumber = parseInt(document.querySelector('.tipNumber').innerText);
-				activeTip.classList.remove('active');
-				if (direction == 'next') {
-					if (tipNumber == tips.length) {
-						tipNumber = 1;
+			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}`;
+			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}`;
+			// change submitFormBtn to edit
+			document.getElementById('submitFormBtn').innerHTML = 'Save';
+		} else {
+			// loop through all ctx actions
+			ctxActions.forEach(ctxAction => {
+				if (ctxAction.dataset.ctxaction == 'edit') {
+					ctxAction.href = `?editissue&id=${target.dataset.issueid}`;
+				} else if (ctxAction.dataset.ctxaction == 'delete') {
+					if (target.dataset.allowdelete == true) {
+						ctxAction.style.display = 'flex';
+						document.getElementById('confirmDeleteButton').href = `?deleteissue&id=${target.dataset.issueid}`;
 					} else {
-						tipNumber++;
+						ctxAction.style.display = 'none';
+						document.getElementById('confirmDeleteButton').href = '#';
 					}
+				} else if (ctxAction.dataset.ctxaction == 'newtab') {
+					ctxAction.href = `?id=${target.dataset.issueid}`;
+					ctxAction.target = '_blank';
 				} else {
-					if (tipNumber == 1) {
-						tipNumber = tips.length;
-					} else {
-						tipNumber--;
-					}
+					ctxAction.style.display = 'none';
 				}
-				document.querySelector('.tipNumber').innerText = tipNumber;
-				document.querySelector('.tip[data-tip="' + tipNumber + '"]').classList.add('active');
-			}
-
-			document.querySelector('#nextTip').addEventListener('click', () => {
-				changeTip('next');
-				// increment tipCount
-				localStorage.setItem('tipCount', parseInt(localStorage.getItem('tipCount')) + 1);
 			});
 
-			document.querySelector('#prevTip').addEventListener('click', () => {
-				changeTip('prev');
-			});
+			document.getElementById('submitFormBtn').innerHTML = 'Create';
 		}
 
-		function pageInit() {
-			// if message parameter in url is set, remove it 
-			if (window.location.search.includes('message') || window.location.search.includes('getupdateinfo')) {
-				var url = window.location.href;
-				// replace &message= and everything after it with nothing
-				url = url.replace(/&message=.*/g, '');
-				// replace &getupdateinfo
-				url = url.replace(/&getupdateinfo/g, '');
-				// if there is a & at the end, without anything after it, remove it
-				url = url.replace(/&$/, '');
-				history.replaceState({}, document.title, url);
-			}
+		mobileCtx.showModal();
+	}
 
-			if (!window.msgShown) {
-				console.log('First, I thought you were a hacker, but then I realized you are just a curious person. \n The source code is available at https://github.com/JMcrafter26/tiny-issue-tracker. \n If you have any questions, feel free to ask me on GitHub.');
-				window.msgShown = true;
-			}
-
-
-
-			// add eventlistener, if dialog is shown, when user clicks outside, close the dialog (only when clicked outside, not inside)
-			document.querySelectorAll('dialog').forEach(dialog => {
-				dialog.addEventListener('click', function(e) {
-					if (e.target === dialog || e.target.tagName === 'FORM' && e.target.tagName === 'BUTTON' && e.target.tagName === 'A') {
-						// check if dialog is open
-						if (dialog.open) {
-							dialog.close();
-						}
-					}
-
-				});
-			});
-
-			// on scroll, hide the context menu
-			document.addEventListener('scroll', hideCtxMenu);
-
-			var pressTimer;
-			var issueItems = document.querySelectorAll(".issueItem");
-
-			issueItems.forEach(function(issueItem) {
-				issueItem.addEventListener('touchend', function(e) {
-					clearTimeout(pressTimer);
-				});
-
-				issueItem.addEventListener('touchstart', function(e) {
-					var target = e.currentTarget;
-
-					// Set timeout
-					pressTimer = window.setTimeout(function() {
-						showMobileCtxMenu(target);
-					}, 500);
-				});
-			});
-
-			convertMarkdown();
-			highlightComment();
-
-			oncontextmenu = (e) => {
-				// check if a parent element has the data-ctx attribute in the hierarchy
-				if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx && e.target.closest('.issueItem').dataset.issueid !== undefined) {
-					showCtxMenu(e, e.target.closest('.issueItem').dataset.issueid, e.target.closest('.issueItem').dataset.allowdelete);
-				} else if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx && e.target.closest('.issueItem').dataset.userid !== undefined) {
-					showCtxMenu(e, e.target.closest('.issueItem').dataset.userid, e.target.closest('.issueItem').dataset.allowdelete, e.target.closest('.issueItem').dataset.userinfo);
-					// check if element is a link
-				} else if (e.target.closest('a')) {
-					// open link in new tab
-					showCtxMenu(e, false, false, false, e.target.closest('a').href);
-				} else {
-					showCtxMenu(e);
-				}
-			}
-
-			// if in url editissue is set, show the dialog
-			if (window.location.search.includes('editissue')) {
-				document.getElementById('create').className = '';
-				document.getElementById('create').showModal();
-				document.getElementById('title').focus();
-				// replace the editissue in the url with nothing (only remove the parameter, keep the rest)
-				var url = window.location.href;
-				url = url.replace('editissue&', '');
-				history.replaceState({}, document.title, url);
-			}
+	function highlightComment() {
+		// check if url contains hash
+		if (!window.location.hash) {
+			return;
 		}
 
+		const commentId = window.location.hash;
 
-
-		// on page load, run showTips
-		window.addEventListener('load', showTips);
-
-		// after page load
-		document.addEventListener("DOMContentLoaded", function() {
-
-			pageInit();
+		const highlitedComments = document.querySelectorAll('.highlightedComment');
+		highlitedComments.forEach(highlitedComment => {
+			highlitedComment.classList.remove('highlightedComment');
 		});
 
-		document.addEventListener("ajaxify:load", function(e) {
+		const comment = document.querySelector(commentId);
+		if (comment) {
+			comment.classList.add('highlightedComment');
+			// scroll to the comment (smooth)
+			comment.scrollIntoView({
+				behavior: 'smooth'
+			});
 
-			// wait 100ms before triggering pageInit
+			// add eventlistener to remove the class after user clicks on the comment
+			document.addEventListener('click', function() {
+				comment.classList.remove('highlightedComment');
+			});
+
+			// after 5 seconds, remove the class, transition smoothly
 			setTimeout(function() {
-				showTips();
-				pageInit();
-			}, 100);
+				comment.classList.remove('highlightedComment');
+			}, 2000);
+		}
+	}
+
+	function resetTips() {
+		localStorage.setItem('tipCount', '0');
+		localStorage.setItem('hideTips', 'false');
+		showTips();
+	}
+
+	function showTips() {
+		let tipsLength = document.querySelectorAll('.tip').length;
+		// add tipCount to local storage
+		if (localStorage.getItem('tipCount') == null) {
+			localStorage.setItem('tipCount', '0');
+		}
+		// if in local storage is set hideTips, hide the tips or tipCount is grater than 10
+		if (localStorage.getItem('hideTips') != 'true' && parseInt(localStorage.getItem('tipCount')) < (tipsLength * 2.5)) {
+			document.querySelector('.tips').classList.remove('hide');
+		}
+
+
+		document.querySelector('#closeTips').addEventListener('click', () => {
+			document.querySelector('.tips').classList.add('hide');
+			localStorage.setItem('hideTips', 'true');
 		});
-	</script>
+
+
+		let tipCount = parseInt(localStorage.getItem('tipCount')) || 0;
+		// Increment tipCount in localStorage for the next time
+		localStorage.setItem('tipCount', tipCount + 1);
+
+
+		// Calculate modulus only when deciding which tip to show
+		let currentTip = (tipCount % tipsLength) + 1;
+		// console.log(currentTip);
+		document.querySelector('.tipNumber').innerText = currentTip;
+		// show the current tip
+		document.querySelector('.tip[data-tip="' + currentTip + '"]').classList.add('active');
+
+		function changeTip(direction) {
+			const tips = document.querySelectorAll('.tip');
+			let activeTip = document.querySelector('.tip.active');
+			let tipNumber = parseInt(document.querySelector('.tipNumber').innerText);
+			activeTip.classList.remove('active');
+			if (direction == 'next') {
+				if (tipNumber == tips.length) {
+					tipNumber = 1;
+				} else {
+					tipNumber++;
+				}
+			} else {
+				if (tipNumber == 1) {
+					tipNumber = tips.length;
+				} else {
+					tipNumber--;
+				}
+			}
+			document.querySelector('.tipNumber').innerText = tipNumber;
+			document.querySelector('.tip[data-tip="' + tipNumber + '"]').classList.add('active');
+		}
+
+		document.querySelector('#nextTip').addEventListener('click', () => {
+			changeTip('next');
+			// increment tipCount
+			localStorage.setItem('tipCount', parseInt(localStorage.getItem('tipCount')) + 1);
+		});
+
+		document.querySelector('#prevTip').addEventListener('click', () => {
+			changeTip('prev');
+		});
+	}
+
+	function pageInit() {
+		// if message parameter in url is set, remove it 
+		if (window.location.search.includes('message') || window.location.search.includes('getupdateinfo')) {
+			var url = window.location.href;
+			// replace &message= and everything after it with nothing
+			url = url.replace(/&message=.*/g, '');
+			// replace &getupdateinfo
+			url = url.replace(/&getupdateinfo/g, '');
+			// if there is a & at the end, without anything after it, remove it
+			url = url.replace(/&$/, '');
+			history.replaceState({}, document.title, url);
+		}
+
+		if (!window.msgShown) {
+			window.msgShown = !0;
+			let e = ["background: #fedd48", "color: #333", "padding: 10px 20px", "font-size: 16px", "line-height: 1.6", "border-radius: 12px", 'font-family: "Arial", sans-serif', "white-space: pre-line"].join(";");
+			console.log("\n%cPowered by Tiny Issue Tracker", e, '\n\nThe source code is freely available at\nhttps://github.com/JMcrafter26/tiny-issue-tracker\n\nFeel free to check it out and contribute.\nIf you have any questions, feel free to ask me on GitHub. "easterEgg()"'), window.easterEgg = function() {
+				console.log("You found the easter egg! 🥚\n\nYou can be proud of yourself ;)"), setTimeout(function() {
+					window.open("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "_blank")
+				}, 3e3)
+			}
+		}
+
+
+		// add eventlistener, if dialog is shown, when user clicks outside, close the dialog (only when clicked outside, not inside)
+		document.querySelectorAll('dialog').forEach(dialog => {
+			dialog.addEventListener('click', function(e) {
+				if (e.target === dialog || e.target.tagName === 'FORM' && e.target.tagName === 'BUTTON' && e.target.tagName === 'A') {
+					// check if dialog is open
+					if (dialog.open) {
+						dialog.close();
+					}
+				}
+
+			});
+		});
+
+		// on scroll, hide the context menu
+		document.addEventListener('scroll', hideCtxMenu);
+
+		var pressTimer;
+		var issueItems = document.querySelectorAll(".issueItem");
+
+		issueItems.forEach(function(issueItem) {
+			issueItem.addEventListener('touchend', function(e) {
+				clearTimeout(pressTimer);
+			});
+
+			issueItem.addEventListener('touchstart', function(e) {
+				var target = e.currentTarget;
+
+				// Set timeout
+				pressTimer = window.setTimeout(function() {
+					showMobileCtxMenu(target);
+				}, 500);
+			});
+		});
+
+		convertMarkdown();
+		highlightComment();
+
+		oncontextmenu = (e) => {
+			// check if a parent element has the data-ctx attribute in the hierarchy
+			if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx && e.target.closest('.issueItem').dataset.issueid !== undefined) {
+				showCtxMenu(e, e.target.closest('.issueItem').dataset.issueid, e.target.closest('.issueItem').dataset.allowdelete);
+			} else if (e.target.closest('.issueItem') && e.target.closest('.issueItem').dataset.ctx && e.target.closest('.issueItem').dataset.userid !== undefined) {
+				showCtxMenu(e, e.target.closest('.issueItem').dataset.userid, e.target.closest('.issueItem').dataset.allowdelete, e.target.closest('.issueItem').dataset.userinfo);
+				// check if element is a link
+			} else if (e.target.closest('a')) {
+				// open link in new tab
+				showCtxMenu(e, false, false, false, e.target.closest('a').href);
+			} else {
+				showCtxMenu(e);
+			}
+		}
+
+		// if in url editissue is set, show the dialog
+		if (window.location.search.includes('editissue')) {
+			document.getElementById('create').className = '';
+			document.getElementById('create').showModal();
+			document.getElementById('title').focus();
+			// replace the editissue in the url with nothing (only remove the parameter, keep the rest)
+			var url = window.location.href;
+			url = url.replace('editissue&', '');
+			history.replaceState({}, document.title, url);
+		}
+	}
+
+
+
+	// on page load, run showTips
+	window.addEventListener('load', showTips);
+
+	// after page load
+	document.addEventListener("DOMContentLoaded", function() {
+
+		pageInit();
+	});
+
+	document.addEventListener("ajaxify:load", function(e) {
+
+		// wait 100ms before triggering pageInit
+		setTimeout(function() {
+			showTips();
+			pageInit();
+		}, 100);
+	});
+</script>
 
 </body>
 

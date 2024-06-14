@@ -23,14 +23,29 @@ Tiny Issue Tracker is SQLite based, single-file issue tracker.
 
 ## Currently Working On
 
-- [ ] User Registration
-- [ ] Stable Release
-- [x] Responsive Design
-- [x] User Roles
+- [ ] Production Ready Release
 - [ ] Better email notifications
-- [ ] ~~Markdown Editor~~ (Not necessary, markdown guide is enough)
-- [x] Better UI
-- [x] Better Comments
+- [ ] Tags for issues
+- [ ] Reaktions (Only if necessary)
+- [ ] More Options for Admins
+- [ ] Stay logged in (Cookies)
+- [ ] Better security (CSRF, Obfuscate all IDs, etc.)!
+- [ ] Online Demo
+- [ ] Smaller File Size (With CDN instead of inline gzip)
+- [ ] Search & Pagination for issues
+- [ ] Guest Mode & Public Issues
+- [ ] Cross Reference Issues
+- [ ] Suggestions? Open an issue!
+
+## Done
+
+- [x] Better UI (Modern, Responsive)
+- [x] Better Comments (Markdown, User Icons)
+- [x] Responsive Design (Mobile Friendly)
+- [x] User Roles (Banned, User, Moderator, Admin)
+- [x] User Registration (Via Admin)
+- [x] Admin Panel (User Management, Logs, Updates, etc.)
+- [ ] ~~Markdown Editor~~ (Maybe if I find a lightweight one)
 
 ## License and Credits
 

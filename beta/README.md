@@ -17,9 +17,7 @@ You can run the script either from the command line or from the browser.
 
 ## New features
 
-- Revamped Roles - New role: `Moderator`, can delete comments and issues.
-- Added update checker - You can now check for updates from the admin panel.
-- Renamed `Admin Area` to `Admin Panel` (for consistency).
-- Many bug fixes and improvements.
+- Change settings directly from the admin panel.
+- Bug fixes and improvements.
 - ...
 - To update the database schema, run the `upgrade.php` script.

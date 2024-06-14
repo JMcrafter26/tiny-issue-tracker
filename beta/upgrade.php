@@ -75,7 +75,7 @@ if ($version == 0) {
 }
 
 
-if ($version == $UPDATE_VERSION) {
+if ($version >= $UPDATE_VERSION) {
     echo "Database is already up to date with this update script (Update version $UPDATE_VERSION, Database version $version)\n";
     echo "Please make sure you have updated the main script to the latest version\n";
     exit;

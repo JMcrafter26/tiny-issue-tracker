@@ -23,9 +23,9 @@ ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
 if (!defined("TIT_INCLUSION")) {
-	$TITLE = "My Project";              // Project Title
-	$EMAIL = "noreply@example.com";     // "From" email address for notifications
-	$SHOWFOOTER = true;
+	// $TITLE = "My Project";              // Project Title
+	// $EMAIL = "noreply@example.com";     // "From" email address for notifications
+	// $SHOWFOOTER = true;
 
 	// Array of users.
 	// Mandatory fields: username, password (md5 hash)
@@ -53,7 +53,7 @@ if (!defined("TIT_INCLUSION")) {
 
 	// Modify this issue types
 	$STATUSES = array(0 => "Active", 1 => "Resolved");
-	$obfuscateId = false;
+	// $obfuscateId = false;
 }
 ////////////////////////////////////////////////////////////////////////
 ////// DO NOT EDIT BEYOND THIS IF YOU DON'T KNOW WHAT YOU'RE DOING /////
@@ -94,64 +94,89 @@ if (isset($_GET['logout'])) {
 	header("Location: ?");
 }
 
-$login_html = "<html>
-<head>
-	<title>Tiny Issue Tracker</title>
-	<meta name='viewport' content='width=device-width, initial-scale=1'>
-	<style>
-	" . insertCss() . "
-	.container {
-		display: flex;
-		justify-content: center;
-		margin-top: 10vh;
-	} 
-	label{display:block;}
-	h2 {text-align:center;}
-	p {text-align:center;}
-	form input {width: 100%; font-family:sans-serif;font-size:11px;}
-			form {
-				padding: 20px;
-				width: 150px;
-				border: 1px solid var(--border);
-				border-radius: 15px;
-			}
-	@media only screen and (max-width: 600px) {
-		form {
-			width: 100%;
-		}
-	}
-	</style>
-</head>
-						 <body>
-							<h2>$TITLE - Issue Tracker</h2><p>$message</p>
-							<div class='container'>
-							<form method='POST' action='" . $_SERVER["REQUEST_URI"] . "'>
-						 <label>Username</label><input type='text' name='u' />
-						 <label>Password</label><input type='password' name='p' />
-						 <label></label><input type='submit' name='login' value='Login' />
-						 </form></div></body></html>";
+
 
 // show login page on bad credential
 
-
-
-// if (check_credentials() == -1) die($login_html);
-if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password']) || !check_credentials($_SESSION['t1t']['username'], $_SESSION['t1t']['password'])) {
-	check_first_time();
-	die($login_html);
-}
 
 // create tables if not exist
 $db->exec("CREATE TABLE if not exists issues (id INTEGER PRIMARY KEY, title TEXT, description TEXT, user TEXT, status INTEGER NOT NULL DEFAULT '0', priority INTEGER, notify_emails TEXT, entrytime DATETIME)");
 $db->exec("CREATE TABLE if not exists comments (id INTEGER PRIMARY KEY, issue_id INTEGER, user TEXT, description TEXT, tags TEXT entrytime DATETIME)");
 $db->exec("CREATE TABLE if not exists config (id INTEGER PRIMARY KEY, key TEXT, value TEXT, entrytime DATETIME)");
 
-if (count($db->query("SELECT * FROM config WHERE key = 'seed'")->fetchAll()) < 1) {
-	$db->exec("INSERT INTO config (key, value, entrytime) values('seed', '" . bin2hex(openssl_random_pseudo_bytes(4)) . "', '" . date("Y-m-d H:i:s") . "')");
+$config = setDefaults();
+$TITLE = $config['project_title'];
+$EMAIL = $config['send_from'];
+$SHOWFOOTER = $config['show_footer'];
+$obfuscateId = $config['obfuscate_id'];
+
+
+
+// if (check_credentials() == -1) die($login_html);
+if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password']) || !check_credentials($_SESSION['t1t']['username'], $_SESSION['t1t']['password'])) {
+	check_first_time();
+?><html>
+
+	<head>
+		<title>Tiny Issue Tracker</title>
+		<meta name='viewport' content='width=device-width, initial-scale=1'>
+		<style>
+			<?php echo insertCss(); ?>.container {
+				display: flex;
+				justify-content: center;
+				margin-top: 10vh;
+			}
+
+			label {
+				display: block;
+			}
+
+			h2 {
+				text-align: center;
+			}
+
+			p {
+				text-align: center;
+			}
+
+			form input {
+				width: 100%;
+				font-family: sans-serif;
+				font-size: 11px;
+			}
+
+			form {
+				padding: 20px;
+				width: 150px;
+				border: 1px solid var(--border);
+				border-radius: 15px;
+			}
+
+			@media only screen and (max-width: 600px) {
+				form {
+					width: 100%;
+				}
+			}
+		</style>
+	</head>
+
+	<body>
+		<h2><?php echo $TITLE; ?> - Issue Tracker</h2>
+		<p><?php echo $message; ?></p>
+		<div class='container'>
+			<form method='POST' action='" . $_SERVER["REQUEST_URI"] . "'>
+				<label>Username</label><input type='text' name='u' />
+				<label>Password</label><input type='password' name='p' />
+				<label></label><input type='submit' name='login' value='Login' />
+			</form>
+		</div>
+	</body>
+
+	</html>
+	<?php
+	die();
 }
-if (count($db->query("SELECT * FROM config WHERE key = 'version'")->fetchAll()) < 1) {
-	$db->exec("INSERT INTO config (key, value, entrytime) values('version', '$VERSION', '" . date("Y-m-d H:i:s") . "')");
-}
+
 
 
 $issue = [];
@@ -215,12 +240,13 @@ if (isset($_GET['admin-panel'])) {
 		$mode = "admin";
 
 		// get config
-		$config = $db->query("SELECT * FROM config WHERE key='update_info'")->fetchAll();
-		if (count($config) > 0) {
-			$updateInfo = json_decode($config[0]['value'], true);
+		$update_info = $db->query("SELECT * FROM config WHERE key='update_info'")->fetchAll();
+		if (count($update_info) > 0) {
+			$updateInfo = json_decode($update_info[0]['value'], true);
 		} else {
 			$updateInfo = array();
 		}
+		unset($update_info);
 	} else {
 		$mode = '';
 	}
@@ -669,6 +695,57 @@ if (isset($_GET["clearlogs"]) && isAdmin()) {
 	header("Location: ?admin-panel&message=Logs cleared");
 }
 
+$settingsBlacklist = array(
+	"version",
+	"seed",
+	"update_info"
+);
+
+if (isset($_GET["savesettings"]) && isAdmin()) {
+	// save settings
+	foreach ($_POST as $key => $value) {
+		// check if setting is in blacklist
+		if (!in_array($key, $settingsBlacklist)) {
+			// if value is "on" or "off", convert to 1 or 0
+			if ($value == "on") {
+				$value = 1;
+			} else if ($value == "off") {
+				$value = 0;
+			}
+
+			echo $key . " = " . $value . "<br>";
+
+			// check if setting exists
+			if (isset($config[$key])) {
+				$db->exec("UPDATE config SET value='" . pdo_escape_string($value) . "' WHERE key='$key'");
+			} else {
+				// $db->exec("INSERT INTO config (key, value, entrytime) values('$key', '" . pdo_escape_string($value) . "', '" . date("Y-m-d H:i:s") . "')");
+			}
+		}
+	}
+
+	// get difference between old and new settings
+	$oldSettings = $config;
+	$newSettings = $db->query("SELECT * FROM config")->fetchAll();
+	foreach ($newSettings as $setting) {
+		$newSettings[$setting['key']] = $setting['value'];
+	}
+	$diff = array_diff_assoc($oldSettings, $newSettings);
+
+	// log action
+	logAction('Settings saved', 1, 'Settings saved by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') with changes: ' . json_encode($diff));
+
+	// logAction('Settings saved', 1, 'Settings saved by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
+	header("Location: ?admin-panel&message=Settings saved");
+}
+
+if (isset($_GET["resetsettings"]) && isAdmin()) {
+	$db->exec("DELETE FROM config WHERE key != 'seed' AND key != 'version'");
+	setDefaults();
+	logAction('Settings reset', 3, 'Settings reset by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
+	header("Location: ?admin-panel&message=Settings reset");
+}
+
 
 
 if (isset($_GET['message'])) {
@@ -690,8 +767,13 @@ function pdo_escape_string($str)
 
 function logAction($action, $priority = 1, $details = "")
 {
-	// priority 1-5
 	global $db;
+	global $config;
+
+	if (!$config['log_actions']) {
+		return;
+	}
+	// priority 1-5
 	$now = date("Y-m-d H:i:s");
 
 	if (isset($_SESSION['t1t']['id'])) {
@@ -708,6 +790,73 @@ function logAction($action, $priority = 1, $details = "")
 	} else {
 		$db->exec("INSERT INTO logs (user_id, action, details, priority, entrytime) values('$userId', '$action', '$details', '$priority','$now')");
 	}
+}
+
+function setDefaults()
+{
+	global $db;
+	global $VERSION;
+
+	// $config = $db->query("SELECT * FROM config")->fetchAll();
+	// foreach ($config as $c) {
+	// 	$config[$c['key']] = $c['value'];
+	// }
+
+	foreach ($db->query("SELECT * FROM config") as $setting) {
+		$config[$setting['key']] = $setting['value'];
+	}
+
+	// die(json_encode($config));
+
+	if (!isset($config['seed'])) {
+		$db->exec("INSERT INTO config (key, value, entrytime) values('seed', '" . bin2hex(openssl_random_pseudo_bytes(4)) . "', '" . date("Y-m-d H:i:s") . "')");
+	}
+	if (!isset($config['version'])) {
+		$db->exec("INSERT INTO config (key, value, entrytime) values('version', '$VERSION', '" . date("Y-m-d H:i:s") . "')");
+	}
+	if (!isset($config['project_title'])) {
+		$db->exec("INSERT INTO config (key, value, entrytime) values('project_title', 'My Project', '" . date("Y-m-d H:i:s") . "')");
+	}
+	if (!isset($config['send_from'])) {
+		$db->exec("INSERT INTO config (key, value, entrytime) values('send_from', 'no-reply@example.com', '" . date("Y-m-d H:i:s") . "')");
+	}
+	if (!isset($config['log_actions'])) {
+		$db->exec("INSERT INTO config (key, value, entrytime) values('log_actions', '1', '" . date("Y-m-d H:i:s") . "')");
+	}
+	if (!isset($config['show_footer'])) {
+		$db->exec("INSERT INTO config (key, value, entrytime) values('show_footer', '1', '" . date("Y-m-d H:i:s") . "')");
+	}
+	if (!isset($config['obfuscate_id'])) {
+		$db->exec("INSERT INTO config (key, value, entrytime) values('obfuscate_id', '0', '" . date("Y-m-d H:i:s") . "')");
+	}
+
+
+
+	// if (count($db->query("SELECT * FROM config WHERE key = 'seed'")->fetchAll()) < 1) {
+	// 	$db->exec("INSERT INTO config (key, value, entrytime) values('seed', '" . bin2hex(openssl_random_pseudo_bytes(4)) . "', '" . date("Y-m-d H:i:s") . "')");
+	// }
+	// if (count($db->query("SELECT * FROM config WHERE key = 'version'")->fetchAll()) < 1) {
+	// 	$db->exec("INSERT INTO config (key, value, entrytime) values('version', '$VERSION', '" . date("Y-m-d H:i:s") . "')");
+	// }
+	// if (count($db->query("SELECT * FROM config WHERE key = 'project_name'")->fetchAll()) < 1) {
+	// 	$db->exec("INSERT INTO config (key, value, entrytime) values('project_name', '$TITLE', '" . date("Y-m-d H:i:s") . "')");
+	// }
+	// if (count($db->query("SELECT * FROM config WHERE key = 'send_from'")->fetchAll()) < 1) {
+	// 	$db->exec("INSERT INTO config (key, value, entrytime) values('send_from', '$EMAIL', '" . date("Y-m-d H:i:s") . "')");
+	// }
+	// if (count($db->query("SELECT * FROM config WHERE key = 'log_actions'")->fetchAll()) < 1) {
+	// 	$db->exec("INSERT INTO config (key, value, entrytime) values('log_actions', '1', '" . date("Y-m-d H:i:s") . "')");
+	// }
+
+	unset($config);
+	// $config = $db->query("SELECT * FROM config")->fetchAll();
+	foreach ($db->query("SELECT * FROM config") as $setting) {
+		$config[$setting['key']] = $setting['value'];
+	}
+
+	// die(json_encode($config['show_footer']));
+
+	return $config;
 }
 
 function isAdmin()
@@ -761,7 +910,7 @@ function check_credentials($u = false, $p = false)
 	$user = $users[0];
 	// if role is 0, then this account is disabled
 	if ($user['role'] == 0) {
-?>
+	?>
 		<html>
 
 		<head>
@@ -2504,8 +2653,61 @@ function insertJquery()
 							</div>
 						</form>
 					</dialog>
-
 				</div>
+
+				<br>
+				<h3>Settings</h3>
+				<div class="settingContainer">
+					<form action="?savesettings" method="POST">
+						<?php
+
+						// config is settings
+						$settings = $config;
+						$settingsBlacklist = array(
+							"version",
+							"seed",
+							"update_info"
+						);
+
+						$type = array(
+							"show_footer" => "boolean",
+							"project_title" => "string",
+							"log_actions" => "boolean",
+							"send_from" => "string",
+							"obfuscate_id" => "boolean",
+						);
+
+						foreach ($settings as $key => $value) {
+							if (!in_array($key, $settingsBlacklist)) {
+								$settingName = $key;
+								// replace _ with space
+								$settingName = str_replace("_", " ", $settingName);
+								// capitalize first letter and every letter after a space
+								$settingName = ucwords($settingName);
+
+								// if type is boolean
+								if ($type[$key] == "boolean") { ?>
+									<label><?php echo $settingName; ?></label>
+									<select name="<?php echo $key; ?>">
+										<option value="1" <?php echo ($value == 1 ? "selected" : ""); ?>>Yes</option>
+										<option value="0" <?php echo ($value == 0 ? "selected" : ""); ?>>No</option>
+									</select>
+									<br>
+								<?php } else { ?>
+									<label><?php echo $settingName; ?></label>
+									<input type="text" name="<?php echo $key; ?>" value="<?php echo $value; ?>" />
+									<br>
+						<?php }
+							}
+						} ?>
+
+
+						<button type="submit" onclick="this.firstElementChild.classList.add('loaderIcon');">Save</button>
+					</form>
+
+					<button onclick="window.ajaxify('?resetsettings');" style="background-color: #f85149; color: white;">Reset Settings</button>
+				</div>
+
 
 				<br>
 				<h3>Update</h3>
@@ -2523,32 +2725,33 @@ function insertJquery()
 					<?php if (isset($updateInfo) && count($updateInfo) > 0) {
 						// if updateinfo time is longer than 1 week, unset it
 
-							if ($updateInfo['latest'] > $VERSION) { ?>
-								<h4>New update available! <a href="https://github.com/JMcrafter26/tiny-issue-tracker" target="_blank">Update Now</a></h4>
-							<?php } else { 
-						if (isset($updateInfo['time']) && strtotime($updateInfo['time']) > strtotime("-1 week")) { ?>
+						if ($updateInfo['latest'] > $VERSION) { ?>
+							<h4>New update available! <a href="https://github.com/JMcrafter26/tiny-issue-tracker" target="_blank">Update Now</a></h4>
+							<?php } else {
+							if (isset($updateInfo['time']) && strtotime($updateInfo['time']) > strtotime("-1 week")) { ?>
 								<h4>No updates :)</h4>
-						<?php } else { ?>
+							<?php } else { ?>
 								<h4>Please check for updates to ensure you have the latest features and security updates.</h4>
-						<?php } } ?>
+						<?php }
+						} ?>
 						<p>This version: <?php echo $VERSION; ?><br>
 							<?php if (isset($updateInfo)) { ?>
 								Latest version: <?php echo $updateInfo['latest']; ?><br>
 						</p>
 						<p>Release Notes:<br>
-							<?php 
-							// replace \n with <br>
-							echo str_replace("\n", "<br>", $updateInfo['notes']);
+							<?php
+								// replace \n with <br>
+								echo str_replace("\n", "<br>", $updateInfo['notes']);
 							?>
 						</p>
-					<?php } } if (isset($updateInfo['time']) && $updateInfo['time'] != '') { ?>
+					<?php }
+						}
+						if (isset($updateInfo['time']) && $updateInfo['time'] != '') { ?>
 					<p style="font-size: 0.8em; opacity: 0.7;">Last checked: <?php echo timeToString($updateInfo['time']); ?> ago (<?php echo $updateInfo['time']; ?>)</p>
 				<?php } else { ?>
 					<p>This version: <?php echo $VERSION; ?></p>
 					<p style="font-size: 0.8em; opacity: 0.7;">Never checked for updates</p>
 				<?php } ?>
-
-
 				</form>
 
 				<br>

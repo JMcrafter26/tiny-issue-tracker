@@ -164,7 +164,7 @@ if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password'])
 		<h2><?php echo $TITLE; ?> - Issue Tracker</h2>
 		<p><?php echo $message; ?></p>
 		<div class='container'>
-			<form method='POST' action='" . $_SERVER["REQUEST_URI"] . "'>
+			<form method='POST' action='?'>
 				<label>Username</label><input type='text' name='u' />
 				<label>Password</label><input type='password' name='p' />
 				<label></label><input type='submit' name='login' value='Login' />

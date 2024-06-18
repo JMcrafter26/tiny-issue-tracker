@@ -4,7 +4,7 @@ Tiny Issue Tracker is SQLite based, single-file issue tracker.
 
 > This project is under active development and things may change. Please wait for a stable release ⭐️
 
-[![wakatime](https://wakatime.com/badge/user/bc316344-3491-45bf-9757-ebf0dd1cdca6/project/0c88fd52-5aef-451e-befd-50ed368a9457.svg)](https://wakatime.com/badge/user/bc316344-3491-45bf-9757-ebf0dd1cdca6/project/0c88fd52-5aef-451e-befd-50ed368a9457)
+[![wakatime](https://wakatime.com/badge/github/JMcrafter26/tiny-issue-tracker.svg)](https://wakatime.com/badge/github/JMcrafter26/tiny-issue-tracker)
 
 ## Features
 

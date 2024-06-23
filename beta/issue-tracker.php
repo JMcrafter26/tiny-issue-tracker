@@ -1,6 +1,6 @@
 <?php
 /*
- *      Tiny Issue Tracker v3.2
+ *      Tiny Issue Tracker v3.3
  *      SQLite based, single file Issue Tracker
  *
  *      Copyright 2010-2013 Jwalanta Shrestha <jwalanta at gmail dot com>
@@ -12,8 +12,6 @@
 // CONFIGURATION //
 ///////////////////
 
-$VERSION = 3.3;
-
 
 // error_reporting(0);
 // ini_set('display_errors', 0);
@@ -23,18 +21,6 @@ ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
 if (!defined("TIT_INCLUSION")) {
-	// $TITLE = "My Project";              // Project Title
-	// $EMAIL = "noreply@example.com";     // "From" email address for notifications
-	// $SHOWFOOTER = true;
-
-	// Array of users.
-	// Mandatory fields: username, password (md5 hash)
-	// Optional fields: email, admin (true/false)
-
-	// $USERS = array(
-	// 	array("username" => "admin", "password" => md5("admin"), "email" => "admin@example.com", "admin" => true),
-	// 	// array("username" => "user", "password" => md5("user"), "email" => "user@example.com"),
-	// );
 
 	// PDO Connection string ()
 	// eg, SQlite: sqlite:<filename> (Warning: if you're upgrading from an earlier version of t1t, you have to use "sqlite2"!)
@@ -42,7 +28,12 @@ if (!defined("TIT_INCLUSION")) {
 	$DB_CONNECTION = "sqlite:tiny-issue-tracker.db";
 	$DB_USERNAME = "";
 	$DB_PASSWORD = "";
-
+	
+	// To use connect multiple Tiny Issue Tracker instances together
+	// IMPORTANT: Both instances need to have the same version, otherwise things may break
+	$DB_PREFIX = ""; // e.g. project1_
+	
+	
 	// Select which notifications to send
 	$NOTIFY["ISSUE_CREATE"]     = TRUE;     // issue created
 	$NOTIFY["ISSUE_EDIT"]       = TRUE;     // issue edited
@@ -53,11 +44,12 @@ if (!defined("TIT_INCLUSION")) {
 
 	// Modify this issue types
 	$STATUSES = array(0 => "Active", 1 => "Resolved");
-	// $obfuscateId = false;
 }
 ////////////////////////////////////////////////////////////////////////
 ////// DO NOT EDIT BEYOND THIS IF YOU DON'T KNOW WHAT YOU'RE DOING /////
 ////////////////////////////////////////////////////////////////////////
+
+$VERSION = 3.3;
 
 foreach ($_GET  as $k => $v) $_GET[$k] = stripslashes($v);
 foreach ($_POST as $k => $v) $_POST[$k] = stripslashes($v);
@@ -69,6 +61,25 @@ try {
 	$db = new PDO($DB_CONNECTION, $DB_USERNAME, $DB_PASSWORD);
 } catch (PDOException $e) {
 	die("DB Connection failed: " . $e->getMessage());
+}
+
+// create tables if not exist
+$db->exec("CREATE TABLE if not exists ". $DB_PREFIX ."issues (id INTEGER PRIMARY KEY, title TEXT, description TEXT, user TEXT, status INTEGER NOT NULL DEFAULT '0', priority INTEGER, notify_emails TEXT, entrytime DATETIME)");
+$db->exec("CREATE TABLE if not exists ". $DB_PREFIX ."comments (id INTEGER PRIMARY KEY, issue_id INTEGER, user TEXT, description TEXT, tags TEXT, entrytime DATETIME)");
+$db->exec("CREATE TABLE if not exists ". $DB_PREFIX ."config (id INTEGER PRIMARY KEY, key TEXT, value TEXT, entrytime DATETIME)");
+
+$config = setDefaults();
+if($DB_PREFIX != '') {
+	$dbVersion = $db->query("SELECT * FROM config where key = 'version'")->fetchAll();
+	if(!$dbVersion) {
+	showCriticalError("Version Error", array('error' => 'Could not get main version from database'));
+	die();
+	}
+	$dbVersion = $dbVersion[0]['value'];
+	if($dbVersion != $config['version']) {
+	showCriticalError("Version Error", array('error' => 'Instance version differs from main version. To avoid errors and data loss, please update all instances to the latest version.', 'instanceVersion' => $config['version'], 'dbVersion' => $dbVersion));
+	die();
+	}
 }
 
 // check for login post
@@ -99,12 +110,7 @@ if (isset($_GET['logout'])) {
 // show login page on bad credential
 
 
-// create tables if not exist
-$db->exec("CREATE TABLE if not exists issues (id INTEGER PRIMARY KEY, title TEXT, description TEXT, user TEXT, status INTEGER NOT NULL DEFAULT '0', priority INTEGER, notify_emails TEXT, entrytime DATETIME)");
-$db->exec("CREATE TABLE if not exists comments (id INTEGER PRIMARY KEY, issue_id INTEGER, user TEXT, description TEXT, tags TEXT entrytime DATETIME)");
-$db->exec("CREATE TABLE if not exists config (id INTEGER PRIMARY KEY, key TEXT, value TEXT, entrytime DATETIME)");
 
-$config = setDefaults();
 $TITLE = $config['project_title'];
 $EMAIL = $config['send_from'];
 $SHOWFOOTER = $config['show_footer'];
@@ -170,6 +176,12 @@ if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password'])
 				<label></label><input type='submit' name='login' value='Login' />
 			</form>
 		</div>
+		
+		<script>
+		function loaderIcon() {
+		return '<svg class="loaderIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-loader"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>';
+	}
+		</script>
 	</body>
 
 	</html>
@@ -215,8 +227,8 @@ if (isset($_GET["id"])) {
 	if ($obfuscateId) {
 		$id = deobfuscateId($id);
 	}
-	$issue = $db->query("SELECT id, title, description, user, status, priority, notify_emails, entrytime FROM issues WHERE id='$id'")->fetchAll();
-	$comments = $db->query("SELECT id, user, description, entrytime FROM comments WHERE issue_id='$id' ORDER BY entrytime ASC")->fetchAll();
+	$issue = $db->query("SELECT id, title, description, user, status, priority, notify_emails, entrytime FROM ". $DB_PREFIX ."issues WHERE id='$id'")->fetchAll();
+	$comments = $db->query("SELECT id, user, description, entrytime FROM ". $DB_PREFIX ."comments WHERE issue_id='$id' ORDER BY entrytime ASC")->fetchAll();
 
 	// add user email to comments
 	foreach ($comments as $i => $comment) {
@@ -240,7 +252,7 @@ if (isset($_GET['admin-panel'])) {
 		$mode = "admin";
 
 		// get config
-		$update_info = $db->query("SELECT * FROM config WHERE key='update_info'")->fetchAll();
+		$update_info = $db->query("SELECT * FROM ". $DB_PREFIX ."config WHERE key='update_info'")->fetchAll();
 		if (count($update_info) > 0) {
 			$updateInfo = json_decode($update_info[0]['value'], true);
 		} else {
@@ -262,17 +274,17 @@ if (!isset($issue) || count($issue) == 0) {
 			$status = (int)$_GET["status"];
 
 		$issues = $db->query(
-			"SELECT id, title, description, user, status, priority, notify_emails, entrytime, comment_user, comment_time " .
-				" FROM issues " .
-				" LEFT JOIN (SELECT max(entrytime) as max_comment_time, issue_id FROM comments GROUP BY issue_id) AS cmax ON cmax.issue_id = issues.id" .
-				" LEFT JOIN (SELECT user AS comment_user, entrytime AS comment_time, issue_id FROM comments ORDER BY issue_id DESC, entrytime DESC) AS c ON c.issue_id = issues.id AND cmax.max_comment_time = c.comment_time" .
-				" WHERE status=" . pdo_escape_string($status ? $status : "0 or status is null") . // <- this is for legacy purposes only
-				" ORDER BY priority, entrytime DESC"
-		)->fetchAll();
+    "SELECT id, title, description, user, status, priority, notify_emails, entrytime, comment_user, comment_time " .
+        " FROM " . $DB_PREFIX . "issues " .
+        " LEFT JOIN (SELECT max(entrytime) as max_comment_time, issue_id FROM " . $DB_PREFIX . "comments GROUP BY issue_id) AS cmax ON cmax.issue_id = " . $DB_PREFIX . "issues.id" .
+        " LEFT JOIN (SELECT user AS comment_user, entrytime AS comment_time, issue_id FROM " . $DB_PREFIX . "comments ORDER BY issue_id DESC, entrytime DESC) AS c ON c.issue_id = " . $DB_PREFIX . "issues.id AND cmax.max_comment_time = c.comment_time" .
+        " WHERE status=" . pdo_escape_string($status ? $status : "0 or status is null") . // <- this is for legacy purposes only
+        " ORDER BY priority, entrytime DESC"
+)->fetchAll();
 
 		// get the comment count for each issue
 		foreach ($issues as $i => $issue) {
-			$issues[$i]['comment_count'] = $db->query("SELECT count(*) FROM comments WHERE issue_id='{$issue['id']}'")->fetchColumn();
+			$issues[$i]['comment_count'] = $db->query("SELECT count(*) FROM ". $DB_PREFIX ."comments WHERE issue_id='{$issue['id']}'")->fetchColumn();
 			if ($obfuscateId) {
 				$issues[$i]['id'] = obfuscateId($issue['id']);
 			}
@@ -303,7 +315,8 @@ if (!isset($issue) || count($issue) == 0) {
 if (isset($_POST["createissue"])) {
 
 	$id = pdo_escape_string($_POST['id']);
-	if ($obfuscateId) {
+	
+	if ($obfuscateId && $id != '') {
 		$id = deobfuscateId($id);
 	}
 	$title = pdo_escape_string($_POST['title']);
@@ -324,9 +337,9 @@ if (isset($_POST["createissue"])) {
 
 
 	if ($id == '')
-		$query = "INSERT INTO issues (title, description, user, priority, notify_emails, entrytime) values('$title','$description','$user','$priority','$notify_emails','$now')"; // create
+		$query = "INSERT INTO ". $DB_PREFIX ."issues (title, description, user, priority, notify_emails, entrytime) values('$title','$description','$user','$priority','$notify_emails','$now')"; // create
 	else
-		$query = "UPDATE issues SET title='$title', description='$description' WHERE id='$id'"; // edit
+		$query = "UPDATE ". $DB_PREFIX ."issues SET title='$title', description='$description' WHERE id='$id'"; // edit
 
 	if (trim($title) != '') {     // title cant be blank
 		@$db->exec($query);
@@ -353,6 +366,10 @@ if (isset($_POST["createissue"])) {
 				);
 		}
 	}
+	
+	if ($obfuscateId) {
+		$id = obfuscateId($id);
+	}
 
 
 	header("Location: ?id=$id");
@@ -369,8 +386,8 @@ if (isset($_GET["deleteissue"])) {
 
 	// only the issue creator or admin can delete issue
 	if (isMod() || $_SESSION['t1t']['username'] == get_col($id, "issues", "user")) {
-		@$db->exec("DELETE FROM issues WHERE id='$id'");
-		@$db->exec("DELETE FROM comments WHERE issue_id='$id'");
+		@$db->exec("DELETE FROM ". $DB_PREFIX ."issues WHERE id='$id'");
+		@$db->exec("DELETE FROM ". $DB_PREFIX ."comments WHERE issue_id='$id'");
 
 		// log action
 		logAction('Issue deleted', 2, 'Issue with id #i' . $id . ' deleted by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
@@ -392,7 +409,7 @@ if (isset($_GET["changepriority"])) {
 		$id = deobfuscateId($id);
 	}
 	$priority = pdo_escape_string($_GET['priority']);
-	if ($priority >= 1 && $priority <= 3) @$db->exec("UPDATE issues SET priority='$priority' WHERE id='$id'");
+	if ($priority >= 1 && $priority <= 3) @$db->exec("UPDATE ". $DB_PREFIX ."issues SET priority='$priority' WHERE id='$id'");
 
 	// log action
 	logAction('Issue priority changed', 1, 'Issue with id #i' . $id . ' priority changed to ' . $priority . ' by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
@@ -419,7 +436,7 @@ if (isset($_GET["changestatus"])) {
 		$id = deobfuscateId($id);
 	}
 	$status = pdo_escape_string($_GET['status']);
-	@$db->exec("UPDATE issues SET status='$status' WHERE id='$id'");
+	@$db->exec("UPDATE ". $DB_PREFIX ."issues SET status='$status' WHERE id='$id'");
 
 	// log action
 	logAction('Issue status changed', 1, 'Issue with id #i' . $id . ' status changed to ' . $status . ' by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
@@ -477,7 +494,7 @@ if (isset($_POST["createcomment"])) {
 	$now = date("Y-m-d H:i:s");
 
 	if (trim($description) != '') {
-		$query = "INSERT INTO comments (issue_id, description, user, entrytime) values('$issue_id','$description','$user','$now')"; // create
+		$query = "INSERT INTO ". $DB_PREFIX ."comments (issue_id, description, user, entrytime) values('$issue_id','$description','$user','$now')"; // create
 		$db->exec($query);
 
 		// log action
@@ -508,7 +525,7 @@ if (isset($_GET["deletecomment"])) {
 
 	// only comment poster or admin can delete comment
 	if (isMod() || $_SESSION['t1t']['username'] == get_col($cid, "comments", "user"))
-		$db->exec("DELETE FROM comments WHERE id='$cid'");
+		$db->exec("DELETE FROM ". $DB_PREFIX ."comments WHERE id='$cid'");
 	// log action
 	logAction('Comment deleted', 2, 'Comment with id #c' . $cid . ' deleted by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 
@@ -677,11 +694,11 @@ if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 
 	// save update info to db
 	// if exists in db table config
-	$updates = $db->query("SELECT * FROM config WHERE key='update_info'")->fetchAll();
+	$updates = $db->query("SELECT * FROM ". $DB_PREFIX ."config WHERE key='update_info'")->fetchAll();
 	if (count($updates) > 0) {
-		$db->exec("UPDATE config SET value='" . json_encode($updateInfo) . "' WHERE key='update_info'");
+		$db->exec("UPDATE ". $DB_PREFIX ."config SET value='" . json_encode($updateInfo) . "' WHERE key='update_info'");
 	} else {
-		$db->exec("INSERT INTO config (key, value, entrytime) values('update_info', '" . json_encode($updateInfo) . "', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('update_info', '" . json_encode($updateInfo) . "', '" . date("Y-m-d H:i:s") . "')");
 	}
 
 	if (!isset($_GET['admin-panel'])) {
@@ -690,7 +707,7 @@ if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 }
 
 if (isset($_GET["clearlogs"]) && isAdmin()) {
-	$db->exec("DELETE FROM logs");
+	$db->exec("DELETE FROM ". $DB_PREFIX ."logs");
 	logAction('Logs cleared', 3, 'Logs cleared by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 	header("Location: ?admin-panel&message=Logs cleared");
 }
@@ -698,6 +715,7 @@ if (isset($_GET["clearlogs"]) && isAdmin()) {
 $settingsBlacklist = array(
 	"version",
 	"seed",
+	"prefix",
 	"update_info"
 );
 
@@ -717,7 +735,7 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 
 			// check if setting exists
 			if (isset($config[$key])) {
-				$db->exec("UPDATE config SET value='" . pdo_escape_string($value) . "' WHERE key='$key'");
+				$db->exec("UPDATE ". $DB_PREFIX ."config SET value='" . pdo_escape_string($value) . "' WHERE key='$key'");
 			} else {
 				// $db->exec("INSERT INTO config (key, value, entrytime) values('$key', '" . pdo_escape_string($value) . "', '" . date("Y-m-d H:i:s") . "')");
 			}
@@ -726,7 +744,7 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 
 	// get difference between old and new settings
 	$oldSettings = $config;
-	$newSettings = $db->query("SELECT * FROM config")->fetchAll();
+	$newSettings = $db->query("SELECT * FROM ". $DB_PREFIX ."config")->fetchAll();
 	foreach ($newSettings as $setting) {
 		$newSettings[$setting['key']] = $setting['value'];
 	}
@@ -740,7 +758,7 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 }
 
 if (isset($_GET["resetsettings"]) && isAdmin()) {
-	$db->exec("DELETE FROM config WHERE key != 'seed' AND key != 'version'");
+	$db->exec("DELETE FROM ". $DB_PREFIX ."config WHERE key != 'seed' AND key != 'version'");
 	setDefaults();
 	logAction('Settings reset', 3, 'Settings reset by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 	header("Location: ?admin-panel&message=Settings reset");
@@ -769,8 +787,9 @@ function logAction($action, $priority = 1, $details = "")
 {
 	global $db;
 	global $config;
+	global $DB_PREFIX;
 
-	if (!$config['log_actions']) {
+	if (!isset($config['log_actions']) || !$config['log_actions']) {
 		return;
 	}
 	// priority 1-5
@@ -781,14 +800,14 @@ function logAction($action, $priority = 1, $details = "")
 	} else {
 		$userId = '';
 	}
-	$db->exec("CREATE TABLE if not exists logs (id INTEGER PRIMARY KEY, user_id INTEGER, action TEXT, details TEXT, priority INTEGER, entrytime DATETIME)");
+	$db->exec("CREATE TABLE if not exists ". $DB_PREFIX ."logs (id INTEGER PRIMARY KEY, user_id INTEGER, action TEXT, details TEXT, priority INTEGER, entrytime DATETIME)");
 
 
 	if (!isset($action) || !isset($userId)) {
 
-		$db->exec("INSERT INTO logs (user_id, action, details, priority, entrytime) values('0', 'Could not log action: Invalid action/userid', '', '4','$now')");
+		$db->exec("INSERT INTO ". $DB_PREFIX ."logs (user_id, action, details, priority, entrytime) values('0', 'Could not log action: Invalid action/userid', '', '4','$now')");
 	} else {
-		$db->exec("INSERT INTO logs (user_id, action, details, priority, entrytime) values('$userId', '$action', '$details', '$priority','$now')");
+		$db->exec("INSERT INTO ". $DB_PREFIX ."logs (user_id, action, details, priority, entrytime) values('$userId', '$action', '$details', '$priority','$now')");
 	}
 }
 
@@ -796,38 +815,44 @@ function setDefaults()
 {
 	global $db;
 	global $VERSION;
+	global $DB_PREFIX;
 
 	// $config = $db->query("SELECT * FROM config")->fetchAll();
 	// foreach ($config as $c) {
 	// 	$config[$c['key']] = $c['value'];
 	// }
 
-	foreach ($db->query("SELECT * FROM config") as $setting) {
+	foreach ($db->query("SELECT * FROM ". $DB_PREFIX ."config") as $setting) {
 		$config[$setting['key']] = $setting['value'];
 	}
 
 	// die(json_encode($config));
 
 	if (!isset($config['seed'])) {
-		$db->exec("INSERT INTO config (key, value, entrytime) values('seed', '" . bin2hex(openssl_random_pseudo_bytes(4)) . "', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('seed', '" . bin2hex(openssl_random_pseudo_bytes(4)) . "', '" . date("Y-m-d H:i:s") . "')");
+	}
+	if (!isset($config['prefix'])) {
+		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('prefix', '" . $DB_PREFIX . "', '" . date("Y-m-d H:i:s") . "')");
 	}
 	if (!isset($config['version'])) {
-		$db->exec("INSERT INTO config (key, value, entrytime) values('version', '$VERSION', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('version', '$VERSION', '" . date("Y-m-d H:i:s") . "')");
+	} else if ($config['version'] != $VERSION) {
+		$db->exec("UPDATE ". $DB_PREFIX ."config set value = '$VERSION' WHERE key = 'version' ");
 	}
 	if (!isset($config['project_title'])) {
-		$db->exec("INSERT INTO config (key, value, entrytime) values('project_title', 'My Project', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('project_title', 'My Project', '" . date("Y-m-d H:i:s") . "')");
 	}
 	if (!isset($config['send_from'])) {
-		$db->exec("INSERT INTO config (key, value, entrytime) values('send_from', 'no-reply@example.com', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('send_from', 'no-reply@example.com', '" . date("Y-m-d H:i:s") . "')");
 	}
 	if (!isset($config['log_actions'])) {
-		$db->exec("INSERT INTO config (key, value, entrytime) values('log_actions', '1', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('log_actions', '1', '" . date("Y-m-d H:i:s") . "')");
 	}
 	if (!isset($config['show_footer'])) {
-		$db->exec("INSERT INTO config (key, value, entrytime) values('show_footer', '1', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('show_footer', '1', '" . date("Y-m-d H:i:s") . "')");
 	}
 	if (!isset($config['obfuscate_id'])) {
-		$db->exec("INSERT INTO config (key, value, entrytime) values('obfuscate_id', '0', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('obfuscate_id', '0', '" . date("Y-m-d H:i:s") . "')");
 	}
 
 
@@ -850,7 +875,7 @@ function setDefaults()
 
 	unset($config);
 	// $config = $db->query("SELECT * FROM config")->fetchAll();
-	foreach ($db->query("SELECT * FROM config") as $setting) {
+	foreach ($db->query("SELECT * FROM ". $DB_PREFIX ."config") as $setting) {
 		$config[$setting['key']] = $setting['value'];
 	}
 
@@ -1106,6 +1131,54 @@ function check_first_time()
 	}
 }
 
+function NisUserLoggedIn()
+{
+	
+	return;
+    // if isset cookie auth
+    if (isset($_COOKIE['token']) && isset($_COOKIE['userId'])) {
+
+        // validate cookie
+        $cookieAuthHash = $_COOKIE['token'];
+        $cookieUserId = $_COOKIE['userId'];
+
+        // decrypt userId
+        $cookieUserId = openssl_decrypt($cookieUserId, 'aes-256-cbc', $cookieAuthHash . 'a-very-long-salt', 0);
+
+        // check if userId is valid
+        $userId = json_decode($cookieUserId, true);
+
+        // check if the user exists in the database
+        $db = dbConnect();
+        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+        $sql = "SELECT * FROM users WHERE id = :id AND email = :email";
+        $stmt = $db->prepare($sql);
+        $stmt->execute(array(
+            ':id' => $userId['id'],
+            ':email' => $userId['email']
+        ));
+
+        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (count($result) > 0) {
+            // validate auth hash
+            
+            if (password_verify($result[0]['email'] . $result[0]['id'] . $_SERVER['HTTP_USER_AGENT'] . session_id(), $cookieAuthHash)) {
+                // validate user id password
+            
+                if (password_verify($userId['password'], $result[0]['password'])) {
+                    $_SESSION['user'] = getUserData($result[0]['id']);
+					
+					return true;
+                }
+            }
+        }
+    } else {
+        return false;
+    }
+    return false;
+}
+
 function showCriticalError($message, $details)
 {
 	global $TITLE;
@@ -1233,6 +1306,19 @@ function showCriticalError($message, $details)
 function get_col($id, $table, $col)
 {
 	global $db;
+	global $DB_PREFIX;
+	
+	$prefixTables = array(
+	'comments',
+	'issues',
+	'config',
+	'logs'
+	);
+	
+	if(in_array($table, $prefixTables)) {
+		$table = $DB_PREFIX . $table;
+	}
+	
 	$result = $db->query("SELECT $col FROM $table WHERE id='$id'")->fetchAll();
 	return $result[0][$col];
 }
@@ -1240,11 +1326,13 @@ function get_col($id, $table, $col)
 // notify via email
 function notify($id, $subject, $body)
 {
+	
 	// check if mail is enabled
 	if (!function_exists('mail')) return;
 
 	global $db;
-	$result = $db->query("SELECT notify_emails FROM issues WHERE id='$id'")->fetchAll();
+	global $DB_PREFIX;
+	$result = $db->query("SELECT notify_emails FROM ". $DB_PREFIX ."issues WHERE id='$id'")->fetchAll();
 	$to = $result[0]['notify_emails'];
 
 	if ($to != '') {
@@ -1287,9 +1375,10 @@ function watchFilterCallback($email)
 function setWatch($id, $addToWatch)
 {
 	global $db;
+	global $DB_PREFIX;
 	if ($_SESSION['t1t']['email'] == '') return;
 
-	$result = $db->query("SELECT notify_emails FROM issues WHERE id='$id'")->fetchAll();
+	$result = $db->query("SELECT notify_emails FROM ". $DB_PREFIX ."issues WHERE id='$id'")->fetchAll();
 	$notify_emails = $result[0]['notify_emails'];
 
 	$emails = $notify_emails ? explode(",", $notify_emails) : array();
@@ -1300,7 +1389,7 @@ function setWatch($id, $addToWatch)
 
 	$notify_emails = implode(",", $emails);
 
-	$db->exec("UPDATE issues SET notify_emails='$notify_emails' WHERE id='$id'");
+	$db->exec("UPDATE ". $DB_PREFIX ."issues SET notify_emails='$notify_emails' WHERE id='$id'");
 
 	if ($addToWatch) {
 		// log action
@@ -1345,7 +1434,8 @@ function timeToString($time)
 function getObfuscationSalt()
 {
 	global $db;
-	$OBFUSCATION_SALT = $db->query("SELECT value FROM config WHERE key = 'seed'")->fetchAll()[0]['value'];
+	global $DB_PREFIX;
+	$OBFUSCATION_SALT = $db->query("SELECT value FROM ". $DB_PREFIX ."config WHERE key = 'seed'")->fetchAll()[0]['value'];
 	$OBFUSCATION_SALT = intval($OBFUSCATION_SALT);
 
 	return isset($OBFUSCATION_SALT) ? $OBFUSCATION_SALT : 0;
@@ -1415,6 +1505,9 @@ function insertJquery()
 	<meta http-equiv="content-type" content="text/html;charset=utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 
+	<script src="//cdn.jsdelivr.net/npm/eruda"></script>
+<script>eruda.init();</script>
+	
 	<!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css"> -->
 	<style>
 		<?php echo insertCss(); ?>h1 a {
@@ -1690,6 +1783,10 @@ function insertJquery()
 		.warning {
 			color: #fedd48;
 		}
+		
+		.blue {
+			color: #1DA1F2;
+		}
 
 		.unimportant {
 			opacity: 0.5;
@@ -1847,6 +1944,7 @@ function insertJquery()
 			bottom: 10px;
 			right: 10px;
 			position: fixed;
+			z-index: 9999;
 		}
 
 		/* on mobile, set width 100% */
@@ -2186,7 +2284,7 @@ function insertJquery()
 					<label>Email</label><input type="text" style="max-width: 85vw;" size="50" name="email" id="email" value="<?php echo htmlentities((isset($issue['email']) ? $issue['email'] : '')); ?>" />
 
 
-					Status
+					Role
 					<select name="status" style="width: 100%;">
 						<option value="2">User</option>
 						<option value="3">Moderator</option>
@@ -2290,6 +2388,12 @@ function insertJquery()
 											<line x1="12" y1="8" x2="12" y2="12"></line>
 											<line x1="12" y1="16" x2="12.01" y2="16"></line>
 										</svg>
+										
+										<!--
+										<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-target"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
+									-->
+									<?php } else if ($issue['priority'] == 3) { ?>
+									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-circle"><circle cx="12" cy="12" r="10"></circle></svg>
 
 									<?php } else { ?>
 										<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-disc">
@@ -2587,16 +2691,20 @@ function insertJquery()
 															echo 'warning';
 														} else if ($user['role'] > 3) {
 															echo 'closed';
+														} else if ($user['role'] == 3) {
+															echo 'blue';
 														} else {
 															echo 'active';
 														} ?>">
 								<?php
 								// check if user has admin rights
-								if ($user['role'] > 2) { ?>
+								if ($user['role'] > 3) { ?>
 									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-award">
-										<circle cx="12" cy="8" r="7"></circle>
-										<polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
+									<circle cx="12" cy="8" r="7"></circle>
+									<polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
 									</svg>
+								<?php } else if ($user['role'] == 3) { ?>
+									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-life-buoy"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"></line><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"></line><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"></line><line x1="14.83" y1="9.17" x2="18.36" y2="5.64"></line><line x1="4.93" y1="19.07" x2="9.17" y2="14.83"></line></svg>
 								<?php } else if ($user['role'] == 0) { ?>
 									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-pause">
 										<rect x="6" y="4" width="4" height="16"></rect>
@@ -2665,6 +2773,7 @@ function insertJquery()
 						$settings = $config;
 						$settingsBlacklist = array(
 							"version",
+							"prefix",
 							"seed",
 							"update_info"
 						);
@@ -2688,31 +2797,33 @@ function insertJquery()
 								// if type is boolean
 								if ($type[$key] == "boolean") { ?>
 									<label><?php echo $settingName; ?></label>
-									<select name="<?php echo $key; ?>">
+									<select style="width: 100%;" name="<?php echo $key; ?>">
 										<option value="1" <?php echo ($value == 1 ? "selected" : ""); ?>>Yes</option>
 										<option value="0" <?php echo ($value == 0 ? "selected" : ""); ?>>No</option>
 									</select>
 									<br>
 								<?php } else { ?>
 									<label><?php echo $settingName; ?></label>
-									<input type="text" name="<?php echo $key; ?>" value="<?php echo $value; ?>" />
+									<input style="width: calc(100% - 20px);" type="text" name="<?php echo $key; ?>" value="<?php echo $value; ?>" />
 									<br>
 						<?php }
 							}
 						} ?>
 
 
-						<button type="submit" onclick="this.firstElementChild.classList.add('loaderIcon');">Save</button>
+						<div class="between">
+						<button onclick="this.innerHTML = loaderIcon(); this.firstElementChild.classList.add('loaderIcon'); window.ajaxify('?resetsettings');" style="background-color: #f85149; color: white;">Reset</button>
+						<button type="submit" onclick="this.innerHTML = loaderIcon(); this.firstElementChild.classList.add('loaderIcon');">Save</button>
+				</div>
 					</form>
 
-					<button onclick="window.ajaxify('?resetsettings');" style="background-color: #f85149; color: white;">Reset Settings</button>
-				</div>
+			</div>
 
 
 				<br>
 				<h3>Update</h3>
 				<form action="?admin-panel&getupdateinfo" method="GET" class="settingContainer">
-					<button type="submit" onclick="this.firstElementChild.classList.add('loaderIcon');">
+					<button type="submit" onclick="this.firstElementChild.classList.add('loaderIcon'); ">
 						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-refresh-cw">
 							<polyline points="23 4 23 10 17 10"></polyline>
 							<polyline points="1 20 1 14 7 14"></polyline>
@@ -2727,6 +2838,9 @@ function insertJquery()
 
 						if ($updateInfo['latest'] > $VERSION) { ?>
 							<h4>New update available! <a href="https://github.com/JMcrafter26/tiny-issue-tracker" target="_blank">Update Now</a></h4>
+							<?php } else if ($updateInfo['latest'] < $VERSION) { ?>
+							<h4>Beta Version ;)</h4>
+							<h5>Please check frequently for new (beta) updates and update when a stable version is out to get new features and bug fixes <a href="https://github.com/JMcrafter26/tiny-issue-tracker" target="_blank">Check on Github</a></h5>
 							<?php } else {
 							if (isset($updateInfo['time']) && strtotime($updateInfo['time']) > strtotime("-1 week")) { ?>
 								<h4>No updates :)</h4>
@@ -2767,7 +2881,7 @@ function insertJquery()
 					$limit = 10;
 					$offset = ($page - 1) * $limit;
 					// get the log from the database
-					$LOG = $db->query("SELECT * FROM logs ORDER BY entrytime DESC LIMIT $limit OFFSET $offset")->fetchAll();
+					$LOG = $db->query("SELECT * FROM ". $DB_PREFIX ."logs ORDER BY entrytime DESC LIMIT $limit OFFSET $offset")->fetchAll();
 					// get totalpages
 					$totalPages = ceil($db->query("SELECT COUNT(*) FROM logs")->fetchColumn() / $limit);
 					// if page is higher than totalpages
@@ -3543,7 +3657,7 @@ function insertJquery()
 		if (!window.msgShown) {
 			window.msgShown = !0;
 			let e = ["background: #fedd48", "color: #333", "padding: 10px 20px", "font-size: 16px", "line-height: 1.6", "border-radius: 12px", 'font-family: "Arial", sans-serif', "white-space: pre-line"].join(";");
-			console.log("\n%cPowered by Tiny Issue Tracker", e, '\n\nThe source code is freely available at\nhttps://github.com/JMcrafter26/tiny-issue-tracker\n\nFeel free to check it out and contribute.\nIf you have any questions, feel free to ask me on GitHub. "easterEgg()"'), window.easterEgg = function() {
+			console.log("\n%cTiny Issue Tracker", e, '\n\nThe source code is freely available at\nhttps://github.com/JMcrafter26/tiny-issue-tracker\n\nFeel free to check it out and contribute.\nIf you have any questions, feel free to ask me on GitHub. "easterEgg()"'), window.easterEgg = function() {
 				console.log("You found the easter egg! 🥚\n\nYou can be proud of yourself ;)"), setTimeout(function() {
 					window.open("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "_blank")
 				}, 3e3)
@@ -3643,7 +3757,5 @@ function insertJquery()
 		}, 100);
 	});
 </script>
-
 </body>
-
 </html>

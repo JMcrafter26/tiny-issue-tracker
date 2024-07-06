@@ -1,4 +1,4 @@
 {
     "latest": "3.2",
-    "notes": "- Revamped Roles - New role: `Moderator`, can delete comments and issues.\n- Added update checker - You can now check for updates from the admin panel.\n- Renamed `Admin Area` to `Admin Panel` (for consistency).\n- Action Log (For Admins)\n- Many bug fixes and improvements.\n\n- To update the database schema, run the `upgrade.php` script."
+    "notes": "\n - Revamped Roles\n - New role: `Moderator`, can delete comments and issues.\n- Added update checker - You can now check for updates from the admin panel.\n- Renamed `Admin Area` to `Admin Panel` (for consistency).\n- Action Log (For Admins)\n- Many bug fixes and improvements.\n\n- To update the database schema, run the `upgrade.php` script."
 }

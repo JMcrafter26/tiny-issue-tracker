@@ -62,3 +62,4 @@ This is a fork of [tit](https://github.com/jwalanta/tit) by [jwalanta](https://g
 - Better comments (Markdown, User Icons)
 - PHP 8 optimized (original version wasn't working on PHP 8)
 - Patches and Fixes
+- And more

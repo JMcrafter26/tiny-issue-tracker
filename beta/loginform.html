@@ -1,0 +1,223 @@
+<html lang='en'>
+<head>
+    <title>Tiny Issue Tracker</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <style>
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* vertically center */
+            height: 80vh;
+            /* full viewport height */
+            margin-top: 0;
+            /* remove previous margin-top */
+        }
+
+
+        label {
+            display: block;
+        }
+
+        h2 {
+            text-align: center;
+        }
+
+        p {
+            text-align: center;
+        }
+
+        form input {
+            width: 100%;
+            font-family: sans-serif;
+            font-size: 11px;
+        }
+
+        form #loginBtn {
+            cursor: pointer;
+            transition: all 0.25s ease-in-out;
+            width: 100%;
+            font-size: 17px;
+        }
+
+
+
+        form {
+            padding: 20px;
+            width: 250px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+        }
+
+        @media only screen and (max-width: 450px) {
+            form {
+                width: 100%;
+            }
+        }
+
+        .error {
+            color: #f85149;
+            text-align: center;
+            font-size: 12px;
+            margin-bottom: -15px;
+        }
+
+        .forgot-password {
+            font-size: 10px;
+            text-decoration: none;
+            display: block;
+            text-align: right;
+            margin-top: 5px;
+            margin-bottom: 15px;
+        }
+
+        #footer {
+            padding: 10px 0 0 0;
+            text-align: center;
+            margin-top: 20px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        #footer svg {
+            transition: all 0.25s ease-in-out;
+            font-size: 12px;
+            height: 12px;
+        }
+
+
+        #footer:hover svg {
+            /* add electrical effect with yellow particles */
+            animation: electric 0.5s infinite;
+            animation-timing-function: ease-in-out;
+        }
+
+        #footer a {
+            transition: color 0.25s ease-in-out;
+        }
+
+        #footer:hover a {
+            color: #fedd48;
+            text-decoration: none;
+        }
+
+        @keyframes electric {
+            0% {
+                filter: url(#sharp-drop-shadow) drop-shadow(0 0 7px rgb(254, 221, 72, 0.7));
+                transform: rotate(0deg);
+            }
+
+            25% {
+                filter: url(#sharp-drop-shadow) drop-shadow(0 0 10px #fedd48);
+                transform: rotate(2.5deg);
+            }
+
+            50% {
+                filter: url(#sharp-drop-shadow) drop-shadow(0 0 12px #fedd48);
+                transform: rotate(5deg);
+            }
+
+            75% {
+                filter: url(#sharp-drop-shadow) drop-shadow(0 0 15px #fedd48);
+                transform: rotate(2.5deg);
+            }
+
+            100% {
+                filter: url(#sharp-drop-shadow) drop-shadow(0 0 16px rgb(254, 221, 72, 0.7));
+                transform: rotate(0deg);
+            }
+        }
+
+        .loaderIcon {
+			animation: spin 1s linear infinite;
+			width: 1em;
+			height: 1em;
+			vertical-align: middle;		}
+
+		@keyframes spin {
+			0% {
+				transform: rotate(0deg);
+			}
+
+			100% {
+				transform: rotate(360deg);
+			}
+		}
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <form style="position: relative;" id="loginForm" onsubmit="return false;" action="?" method="POST">
+            <h2>
+                <?php echo $TITLE; ?> - Issue Tracker
+            </h2>
+            <p class="error">
+                <?php echo $message; ?>
+            </p>
+            <br>
+            <label>Username</label><input type="text" name="u" />
+            <label>Password</label><input type="password" name="p" />
+            <a class="forgot-password" href="?forgot-password">Forgot Password?</a>
+            <label></label><button type="submit" name="login" id="loginBtn">Sign In</button>
+        </form>
+    </div>
+
+    <?php if ($SHOWFOOTER) { ?>
+    <div id="footer">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" class="feather feather-zap">
+            <defs>
+                <filter id="sharp-drop-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur in="SourceAlpha" stdDeviation="1" />
+                    <feOffset dx="0" dy="0" result="offsetblur" />
+                    <feFlood flood-color="#fedd48" />
+                    <feComposite in2="offsetblur" operator="in" />
+                    <feMerge>
+                        <feMergeNode />
+                        <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                </filter>
+            </defs>
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+        Powered by <a href="https://github.com/JMcrafter26/tiny-issue-tracker" alt="Tiny Issue Tracker"
+            target="_blank">Tiny Issue Tracker</a>
+    </div>
+    <?php } ?>
+    <script>
+        function loaderIcon() {
+            return '<svg class="loaderIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-loader"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>';
+        }
+        
+        document.getElementById('loginBtn').addEventListener('click', function() {
+            showLoader();
+        });
+        
+
+        function showLoader() {
+        // prevent form from submitting
+        let form = document.getElementById('loginForm');
+
+
+		var loader = document.createElement('div');
+		loader.style.position = 'absolute';
+		loader.style.top = '0';
+		loader.style.left = '0';
+		loader.style.width = '100%';
+        loader.style.borderRadius = '20px';
+		loader.style.height = '100%';
+		loader.style.backgroundColor = 'rgba(0,0,0,0.2)';
+		loader.style.zIndex = '1000';
+		loader.style.display = 'flex';
+		loader.style.justifyContent = 'center';
+		loader.style.alignItems = 'center';
+		loader.innerHTML = loaderIcon();
+
+        form.appendChild(loader);
+	}
+    </script>
+</body>
+</html>

@@ -28,12 +28,12 @@ if (!defined("TIT_INCLUSION")) {
 	$DB_CONNECTION = "sqlite:tiny-issue-tracker.db";
 	$DB_USERNAME = "";
 	$DB_PASSWORD = "";
-	
+
 	// To use connect multiple Tiny Issue Tracker instances together
 	// IMPORTANT: Both instances need to have the same version, otherwise things may break
 	$DB_PREFIX = ""; // e.g. project1_
-	
-	
+
+
 	// Select which notifications to send
 	$NOTIFY["ISSUE_CREATE"]     = TRUE;     // issue created
 	$NOTIFY["ISSUE_EDIT"]       = TRUE;     // issue edited
@@ -64,21 +64,21 @@ try {
 }
 
 // create tables if not exist
-$db->exec("CREATE TABLE if not exists ". $DB_PREFIX ."issues (id INTEGER PRIMARY KEY, title TEXT, description TEXT, user TEXT, status INTEGER NOT NULL DEFAULT '0', priority INTEGER, notify_emails TEXT, entrytime DATETIME)");
-$db->exec("CREATE TABLE if not exists ". $DB_PREFIX ."comments (id INTEGER PRIMARY KEY, issue_id INTEGER, user TEXT, description TEXT, tags TEXT, entrytime DATETIME)");
-$db->exec("CREATE TABLE if not exists ". $DB_PREFIX ."config (id INTEGER PRIMARY KEY, key TEXT, value TEXT, entrytime DATETIME)");
+$db->exec("CREATE TABLE if not exists " . $DB_PREFIX . "issues (id INTEGER PRIMARY KEY, title TEXT, description TEXT, user TEXT, status INTEGER NOT NULL DEFAULT '0', priority INTEGER, notify_emails TEXT, entrytime DATETIME)");
+$db->exec("CREATE TABLE if not exists " . $DB_PREFIX . "comments (id INTEGER PRIMARY KEY, issue_id INTEGER, user TEXT, description TEXT, tags TEXT, entrytime DATETIME)");
+$db->exec("CREATE TABLE if not exists " . $DB_PREFIX . "config (id INTEGER PRIMARY KEY, key TEXT, value TEXT, entrytime DATETIME)");
 
 $config = setDefaults();
-if($DB_PREFIX != '') {
+if ($DB_PREFIX != '') {
 	$dbVersion = $db->query("SELECT * FROM config where key = 'version'")->fetchAll();
-	if(!$dbVersion) {
-	showCriticalError("Version Error", array('error' => 'Could not get main version from database'));
-	die();
+	if (!$dbVersion) {
+		showCriticalError("Version Error", array('error' => 'Could not get main version from database'));
+		die();
 	}
 	$dbVersion = $dbVersion[0]['value'];
-	if($dbVersion != $config['version']) {
-	showCriticalError("Version Error", array('error' => 'Instance version differs from main version. To avoid errors and data loss, please update all instances to the latest version.', 'instanceVersion' => $config['version'], 'dbVersion' => $dbVersion));
-	die();
+	if ($dbVersion != $config['version']) {
+		showCriticalError("Version Error", array('error' => 'Instance version differs from main version. To avoid errors and data loss, please update all instances to the latest version.', 'instanceVersion' => $config['version'], 'dbVersion' => $dbVersion));
+		die();
 	}
 }
 
@@ -121,70 +121,226 @@ $obfuscateId = $config['obfuscate_id'];
 // if (check_credentials() == -1) die($login_html);
 if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password']) || !check_credentials($_SESSION['t1t']['username'], $_SESSION['t1t']['password'])) {
 	check_first_time();
-?><html>
 
-	<head>
-		<title>Tiny Issue Tracker</title>
-		<meta name='viewport' content='width=device-width, initial-scale=1'>
-		<style>
-			<?php echo insertCss(); ?>.container {
-				display: flex;
-				justify-content: center;
-				margin-top: 10vh;
-			}
-
-			label {
-				display: block;
-			}
-
-			h2 {
-				text-align: center;
-			}
-
-			p {
-				text-align: center;
-			}
-
-			form input {
-				width: 100%;
-				font-family: sans-serif;
-				font-size: 11px;
-			}
-
-			form {
-				padding: 20px;
-				width: 150px;
-				border: 1px solid var(--border);
-				border-radius: 15px;
-			}
-
-			@media only screen and (max-width: 600px) {
-				form {
-					width: 100%;
-				}
-			}
-		</style>
-	</head>
-
-	<body>
-		<h2><?php echo $TITLE; ?> - Issue Tracker</h2>
-		<p><?php echo $message; ?></p>
-		<div class='container'>
-			<form method='POST' action='?'>
-				<label>Username</label><input type='text' name='u' />
-				<label>Password</label><input type='password' name='p' />
-				<label></label><input type='submit' name='login' value='Login' />
-			</form>
-		</div>
-		
-		<script>
-		function loaderIcon() {
-		return '<svg class="loaderIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-loader"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>';
+	if (isset($_GET['forgot-password'])) {
+		// forgot password
+		$message = "Please contact your administrator to reset your password";
 	}
-		</script>
-	</body>
+?>
+	<html lang='en'>
+<head>
+    <title>Tiny Issue Tracker</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <style>
+		<?php echo insertCSS(); ?>
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 80vh;
+            margin-top: 0;
+        }
 
-	</html>
+        label {
+            display: block;
+        }
+
+        h2 {
+            text-align: center;
+        }
+
+        p {
+            text-align: center;
+        }
+
+        form input {
+            width: 100%;
+            font-family: sans-serif;
+            font-size: 11px;
+        }
+
+        form #loginBtn {
+            cursor: pointer;
+            transition: all 0.25s ease-in-out;
+            width: 100%;
+            font-size: 17px;
+        }
+
+        form {
+            padding: 20px;
+            width: 250px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+        }
+
+        @media only screen and (max-width: 450px) {
+            form {
+                width: 100%;
+            }
+        }
+
+        .error {
+            color: #f85149;
+            text-align: center;
+            font-size: 12px;
+            margin-bottom: -15px;
+        }
+
+        .forgot-password {
+            font-size: 10px;
+            text-decoration: none;
+            display: block;
+            text-align: right;
+            margin-top: 5px;
+            margin-bottom: 15px;
+        }
+        #footer {
+            padding: 10px 0 0 0;
+            text-align: center;
+            margin-top: 20px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        #footer svg {
+            transition: all 0.25s ease-in-out;
+            font-size: 12px;
+            height: 12px;
+        }
+
+
+        #footer:hover svg {
+            /* add electrical effect with yellow particles */
+            animation: electric 0.5s infinite;
+            animation-timing-function: ease-in-out;
+        }
+
+        #footer a {
+            transition: color 0.25s ease-in-out;
+        }
+
+        #footer:hover a {
+            color: #fedd48;
+            text-decoration: none;
+        }
+
+        @keyframes electric {
+            0% {
+                filter: url(#sharp-drop-shadow) drop-shadow(0 0 7px rgb(254, 221, 72, 0.7));
+                transform: rotate(0deg);
+            }
+
+            25% {
+                filter: url(#sharp-drop-shadow) drop-shadow(0 0 10px #fedd48);
+                transform: rotate(2.5deg);
+            }
+
+            50% {
+                filter: url(#sharp-drop-shadow) drop-shadow(0 0 12px #fedd48);
+                transform: rotate(5deg);
+            }
+
+            75% {
+                filter: url(#sharp-drop-shadow) drop-shadow(0 0 15px #fedd48);
+                transform: rotate(2.5deg);
+            }
+
+            100% {
+                filter: url(#sharp-drop-shadow) drop-shadow(0 0 16px rgb(254, 221, 72, 0.7));
+                transform: rotate(0deg);
+            }
+        }
+
+        .loaderIcon {
+			animation: spin 1s linear infinite;
+			width: 1em;
+			height: 1em;
+			vertical-align: middle;		}
+
+		@keyframes spin {
+			0% {
+				transform: rotate(0deg);
+			}
+
+			100% {
+				transform: rotate(360deg);
+			}
+		}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <form style="position: relative;" id="loginForm" action="?" method="POST">
+            <h2>
+                <?php echo $TITLE; ?> - Issue Tracker
+            </h2>
+            <p class="error">
+                <?php echo $message; ?>
+            </p>
+            <br>
+            <label>Username</label><input type="text" name="u" />
+            <label>Password</label><input type="password" name="p" />
+            <a class="forgot-password" href="?forgot-password">Forgot Password?</a>
+            <label></label><button type="submit" name="login" id="loginBtn">Sign In</button>
+        </form>
+    </div>
+
+    <?php if ($SHOWFOOTER) { ?>
+    <div id="footer">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" class="feather feather-zap">
+            <defs>
+                <filter id="sharp-drop-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur in="SourceAlpha" stdDeviation="1" />
+                    <feOffset dx="0" dy="0" result="offsetblur" />
+                    <feFlood flood-color="#fedd48" />
+                    <feComposite in2="offsetblur" operator="in" />
+                    <feMerge>
+                        <feMergeNode />
+                        <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                </filter>
+            </defs>
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+        Powered by <a href="https://github.com/JMcrafter26/tiny-issue-tracker" alt="Tiny Issue Tracker"
+            target="_blank">Tiny Issue Tracker</a>
+    </div>
+    <?php } ?>
+    <script>
+        function loaderIcon() {
+            return '<svg class="loaderIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-loader"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>';
+        }
+        
+        document.getElementById('loginBtn').addEventListener('click', function() {
+            showLoader();
+        });
+        
+
+        function showLoader() {
+        // prevent form from submitting
+        let form = document.getElementById('loginForm');
+
+
+		var loader = document.createElement('div');
+		loader.style.position = 'absolute';
+		loader.style.top = '0';
+		loader.style.left = '0';
+		loader.style.width = '100%';
+        loader.style.borderRadius = '20px';
+		loader.style.height = '100%';
+		loader.style.backgroundColor = 'rgba(0,0,0,0.2)';
+		loader.style.zIndex = '1000';
+		loader.style.display = 'flex';
+		loader.style.justifyContent = 'center';
+		loader.style.alignItems = 'center';
+		loader.innerHTML = loaderIcon();
+
+        form.appendChild(loader);
+	}
+    </script>
+</body>
+</html>
 	<?php
 	die();
 }
@@ -227,8 +383,8 @@ if (isset($_GET["id"])) {
 	if ($obfuscateId) {
 		$id = deobfuscateId($id);
 	}
-	$issue = $db->query("SELECT id, title, description, user, status, priority, notify_emails, entrytime FROM ". $DB_PREFIX ."issues WHERE id='$id'")->fetchAll();
-	$comments = $db->query("SELECT id, user, description, entrytime FROM ". $DB_PREFIX ."comments WHERE issue_id='$id' ORDER BY entrytime ASC")->fetchAll();
+	$issue = $db->query("SELECT id, title, description, user, status, priority, notify_emails, entrytime FROM " . $DB_PREFIX . "issues WHERE id='$id'")->fetchAll();
+	$comments = $db->query("SELECT id, user, description, entrytime FROM " . $DB_PREFIX . "comments WHERE issue_id='$id' ORDER BY entrytime ASC")->fetchAll();
 
 	// add user email to comments
 	foreach ($comments as $i => $comment) {
@@ -252,7 +408,7 @@ if (isset($_GET['admin-panel'])) {
 		$mode = "admin";
 
 		// get config
-		$update_info = $db->query("SELECT * FROM ". $DB_PREFIX ."config WHERE key='update_info'")->fetchAll();
+		$update_info = $db->query("SELECT * FROM " . $DB_PREFIX . "config WHERE key='update_info'")->fetchAll();
 		if (count($update_info) > 0) {
 			$updateInfo = json_decode($update_info[0]['value'], true);
 		} else {
@@ -274,17 +430,17 @@ if (!isset($issue) || count($issue) == 0) {
 			$status = (int)$_GET["status"];
 
 		$issues = $db->query(
-    "SELECT id, title, description, user, status, priority, notify_emails, entrytime, comment_user, comment_time " .
-        " FROM " . $DB_PREFIX . "issues " .
-        " LEFT JOIN (SELECT max(entrytime) as max_comment_time, issue_id FROM " . $DB_PREFIX . "comments GROUP BY issue_id) AS cmax ON cmax.issue_id = " . $DB_PREFIX . "issues.id" .
-        " LEFT JOIN (SELECT user AS comment_user, entrytime AS comment_time, issue_id FROM " . $DB_PREFIX . "comments ORDER BY issue_id DESC, entrytime DESC) AS c ON c.issue_id = " . $DB_PREFIX . "issues.id AND cmax.max_comment_time = c.comment_time" .
-        " WHERE status=" . pdo_escape_string($status ? $status : "0 or status is null") . // <- this is for legacy purposes only
-        " ORDER BY priority, entrytime DESC"
-)->fetchAll();
+			"SELECT id, title, description, user, status, priority, notify_emails, entrytime, comment_user, comment_time " .
+				" FROM " . $DB_PREFIX . "issues " .
+				" LEFT JOIN (SELECT max(entrytime) as max_comment_time, issue_id FROM " . $DB_PREFIX . "comments GROUP BY issue_id) AS cmax ON cmax.issue_id = " . $DB_PREFIX . "issues.id" .
+				" LEFT JOIN (SELECT user AS comment_user, entrytime AS comment_time, issue_id FROM " . $DB_PREFIX . "comments ORDER BY issue_id DESC, entrytime DESC) AS c ON c.issue_id = " . $DB_PREFIX . "issues.id AND cmax.max_comment_time = c.comment_time" .
+				" WHERE status=" . pdo_escape_string($status ? $status : "0 or status is null") . // <- this is for legacy purposes only
+				" ORDER BY priority, entrytime DESC"
+		)->fetchAll();
 
 		// get the comment count for each issue
 		foreach ($issues as $i => $issue) {
-			$issues[$i]['comment_count'] = $db->query("SELECT count(*) FROM ". $DB_PREFIX ."comments WHERE issue_id='{$issue['id']}'")->fetchColumn();
+			$issues[$i]['comment_count'] = $db->query("SELECT count(*) FROM " . $DB_PREFIX . "comments WHERE issue_id='{$issue['id']}'")->fetchColumn();
 			if ($obfuscateId) {
 				$issues[$i]['id'] = obfuscateId($issue['id']);
 			}
@@ -315,7 +471,7 @@ if (!isset($issue) || count($issue) == 0) {
 if (isset($_POST["createissue"])) {
 
 	$id = pdo_escape_string($_POST['id']);
-	
+
 	if ($obfuscateId && $id != '') {
 		$id = deobfuscateId($id);
 	}
@@ -337,9 +493,9 @@ if (isset($_POST["createissue"])) {
 
 
 	if ($id == '')
-		$query = "INSERT INTO ". $DB_PREFIX ."issues (title, description, user, priority, notify_emails, entrytime) values('$title','$description','$user','$priority','$notify_emails','$now')"; // create
+		$query = "INSERT INTO " . $DB_PREFIX . "issues (title, description, user, priority, notify_emails, entrytime) values('$title','$description','$user','$priority','$notify_emails','$now')"; // create
 	else
-		$query = "UPDATE ". $DB_PREFIX ."issues SET title='$title', description='$description' WHERE id='$id'"; // edit
+		$query = "UPDATE " . $DB_PREFIX . "issues SET title='$title', description='$description' WHERE id='$id'"; // edit
 
 	if (trim($title) != '') {     // title cant be blank
 		@$db->exec($query);
@@ -366,7 +522,7 @@ if (isset($_POST["createissue"])) {
 				);
 		}
 	}
-	
+
 	if ($obfuscateId) {
 		$id = obfuscateId($id);
 	}
@@ -386,8 +542,8 @@ if (isset($_GET["deleteissue"])) {
 
 	// only the issue creator or admin can delete issue
 	if (isMod() || $_SESSION['t1t']['username'] == get_col($id, "issues", "user")) {
-		@$db->exec("DELETE FROM ". $DB_PREFIX ."issues WHERE id='$id'");
-		@$db->exec("DELETE FROM ". $DB_PREFIX ."comments WHERE issue_id='$id'");
+		@$db->exec("DELETE FROM " . $DB_PREFIX . "issues WHERE id='$id'");
+		@$db->exec("DELETE FROM " . $DB_PREFIX . "comments WHERE issue_id='$id'");
 
 		// log action
 		logAction('Issue deleted', 2, 'Issue with id #i' . $id . ' deleted by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
@@ -409,7 +565,7 @@ if (isset($_GET["changepriority"])) {
 		$id = deobfuscateId($id);
 	}
 	$priority = pdo_escape_string($_GET['priority']);
-	if ($priority >= 1 && $priority <= 3) @$db->exec("UPDATE ". $DB_PREFIX ."issues SET priority='$priority' WHERE id='$id'");
+	if ($priority >= 1 && $priority <= 3) @$db->exec("UPDATE " . $DB_PREFIX . "issues SET priority='$priority' WHERE id='$id'");
 
 	// log action
 	logAction('Issue priority changed', 1, 'Issue with id #i' . $id . ' priority changed to ' . $priority . ' by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
@@ -436,7 +592,7 @@ if (isset($_GET["changestatus"])) {
 		$id = deobfuscateId($id);
 	}
 	$status = pdo_escape_string($_GET['status']);
-	@$db->exec("UPDATE ". $DB_PREFIX ."issues SET status='$status' WHERE id='$id'");
+	@$db->exec("UPDATE " . $DB_PREFIX . "issues SET status='$status' WHERE id='$id'");
 
 	// log action
 	logAction('Issue status changed', 1, 'Issue with id #i' . $id . ' status changed to ' . $status . ' by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
@@ -494,7 +650,7 @@ if (isset($_POST["createcomment"])) {
 	$now = date("Y-m-d H:i:s");
 
 	if (trim($description) != '') {
-		$query = "INSERT INTO ". $DB_PREFIX ."comments (issue_id, description, user, entrytime) values('$issue_id','$description','$user','$now')"; // create
+		$query = "INSERT INTO " . $DB_PREFIX . "comments (issue_id, description, user, entrytime) values('$issue_id','$description','$user','$now')"; // create
 		$db->exec($query);
 
 		// log action
@@ -525,7 +681,7 @@ if (isset($_GET["deletecomment"])) {
 
 	// only comment poster or admin can delete comment
 	if (isMod() || $_SESSION['t1t']['username'] == get_col($cid, "comments", "user"))
-		$db->exec("DELETE FROM ". $DB_PREFIX ."comments WHERE id='$cid'");
+		$db->exec("DELETE FROM " . $DB_PREFIX . "comments WHERE id='$cid'");
 	// log action
 	logAction('Comment deleted', 2, 'Comment with id #c' . $cid . ' deleted by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 
@@ -688,8 +844,8 @@ if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 	} catch (Exception $e) {
 		$message += "An error occurred while getting update info";
 	}
-	
-	if(!$updateInfo || $updateInfo == '') {
+
+	if (!$updateInfo || $updateInfo == '') {
 		header("Location: ?admin-panel&message=An error occurred while getting update info.");
 		exit;
 	}
@@ -699,11 +855,11 @@ if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 
 	// save update info to db
 	// if exists in db table config
-	$updates = $db->query("SELECT * FROM ". $DB_PREFIX ."config WHERE key='update_info'")->fetchAll();
+	$updates = $db->query("SELECT * FROM " . $DB_PREFIX . "config WHERE key='update_info'")->fetchAll();
 	if (count($updates) > 0) {
-		$db->exec("UPDATE ". $DB_PREFIX ."config SET value='" . json_encode($updateInfo) . "' WHERE key='update_info'");
+		$db->exec("UPDATE " . $DB_PREFIX . "config SET value='" . json_encode($updateInfo) . "' WHERE key='update_info'");
 	} else {
-		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('update_info', '" . json_encode($updateInfo) . "', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('update_info', '" . json_encode($updateInfo) . "', '" . date("Y-m-d H:i:s") . "')");
 	}
 
 	if (!isset($_GET['admin-panel'])) {
@@ -712,7 +868,7 @@ if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 }
 
 if (isset($_GET["clearlogs"]) && isAdmin()) {
-	$db->exec("DELETE FROM ". $DB_PREFIX ."logs");
+	$db->exec("DELETE FROM " . $DB_PREFIX . "logs");
 	logAction('Logs cleared', 3, 'Logs cleared by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 	header("Location: ?admin-panel&message=Logs cleared");
 }
@@ -740,7 +896,7 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 
 			// check if setting exists
 			if (isset($config[$key])) {
-				$db->exec("UPDATE ". $DB_PREFIX ."config SET value='" . pdo_escape_string($value) . "' WHERE key='$key'");
+				$db->exec("UPDATE " . $DB_PREFIX . "config SET value='" . pdo_escape_string($value) . "' WHERE key='$key'");
 			} else {
 				// $db->exec("INSERT INTO config (key, value, entrytime) values('$key', '" . pdo_escape_string($value) . "', '" . date("Y-m-d H:i:s") . "')");
 			}
@@ -749,7 +905,7 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 
 	// get difference between old and new settings
 	$oldSettings = $config;
-	$newSettings = $db->query("SELECT * FROM ". $DB_PREFIX ."config")->fetchAll();
+	$newSettings = $db->query("SELECT * FROM " . $DB_PREFIX . "config")->fetchAll();
 	foreach ($newSettings as $setting) {
 		$newSettings[$setting['key']] = $setting['value'];
 	}
@@ -763,7 +919,7 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 }
 
 if (isset($_GET["resetsettings"]) && isAdmin()) {
-	$db->exec("DELETE FROM ". $DB_PREFIX ."config WHERE key != 'seed' AND key != 'version'");
+	$db->exec("DELETE FROM " . $DB_PREFIX . "config WHERE key != 'seed' AND key != 'version'");
 	setDefaults();
 	logAction('Settings reset', 3, 'Settings reset by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 	header("Location: ?admin-panel&message=Settings reset");
@@ -805,14 +961,14 @@ function logAction($action, $priority = 1, $details = "")
 	} else {
 		$userId = '';
 	}
-	$db->exec("CREATE TABLE if not exists ". $DB_PREFIX ."logs (id INTEGER PRIMARY KEY, user_id INTEGER, action TEXT, details TEXT, priority INTEGER, entrytime DATETIME)");
+	$db->exec("CREATE TABLE if not exists " . $DB_PREFIX . "logs (id INTEGER PRIMARY KEY, user_id INTEGER, action TEXT, details TEXT, priority INTEGER, entrytime DATETIME)");
 
 
 	if (!isset($action) || !isset($userId)) {
 
-		$db->exec("INSERT INTO ". $DB_PREFIX ."logs (user_id, action, details, priority, entrytime) values('0', 'Could not log action: Invalid action/userid', '', '4','$now')");
+		$db->exec("INSERT INTO " . $DB_PREFIX . "logs (user_id, action, details, priority, entrytime) values('0', 'Could not log action: Invalid action/userid', '', '4','$now')");
 	} else {
-		$db->exec("INSERT INTO ". $DB_PREFIX ."logs (user_id, action, details, priority, entrytime) values('$userId', '$action', '$details', '$priority','$now')");
+		$db->exec("INSERT INTO " . $DB_PREFIX . "logs (user_id, action, details, priority, entrytime) values('$userId', '$action', '$details', '$priority','$now')");
 	}
 }
 
@@ -827,37 +983,37 @@ function setDefaults()
 	// 	$config[$c['key']] = $c['value'];
 	// }
 
-	foreach ($db->query("SELECT * FROM ". $DB_PREFIX ."config") as $setting) {
+	foreach ($db->query("SELECT * FROM " . $DB_PREFIX . "config") as $setting) {
 		$config[$setting['key']] = $setting['value'];
 	}
 
 	// die(json_encode($config));
 
 	if (!isset($config['seed'])) {
-		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('seed', '" . bin2hex(openssl_random_pseudo_bytes(4)) . "', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('seed', '" . bin2hex(openssl_random_pseudo_bytes(4)) . "', '" . date("Y-m-d H:i:s") . "')");
 	}
 	if (!isset($config['prefix'])) {
-		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('prefix', '" . $DB_PREFIX . "', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('prefix', '" . $DB_PREFIX . "', '" . date("Y-m-d H:i:s") . "')");
 	}
 	if (!isset($config['version'])) {
-		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('version', '$VERSION', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('version', '$VERSION', '" . date("Y-m-d H:i:s") . "')");
 	} else if ($config['version'] != $VERSION) {
-		$db->exec("UPDATE ". $DB_PREFIX ."config set value = '$VERSION' WHERE key = 'version' ");
+		$db->exec("UPDATE " . $DB_PREFIX . "config set value = '$VERSION' WHERE key = 'version' ");
 	}
 	if (!isset($config['project_title'])) {
-		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('project_title', 'My Project', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('project_title', 'My Project', '" . date("Y-m-d H:i:s") . "')");
 	}
 	if (!isset($config['send_from'])) {
-		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('send_from', 'no-reply@example.com', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('send_from', 'no-reply@example.com', '" . date("Y-m-d H:i:s") . "')");
 	}
 	if (!isset($config['log_actions'])) {
-		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('log_actions', '1', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('log_actions', '1', '" . date("Y-m-d H:i:s") . "')");
 	}
 	if (!isset($config['show_footer'])) {
-		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('show_footer', '1', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('show_footer', '1', '" . date("Y-m-d H:i:s") . "')");
 	}
 	if (!isset($config['obfuscate_id'])) {
-		$db->exec("INSERT INTO ". $DB_PREFIX ."config (key, value, entrytime) values('obfuscate_id', '0', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('obfuscate_id', '0', '" . date("Y-m-d H:i:s") . "')");
 	}
 
 
@@ -880,7 +1036,7 @@ function setDefaults()
 
 	unset($config);
 	// $config = $db->query("SELECT * FROM config")->fetchAll();
-	foreach ($db->query("SELECT * FROM ". $DB_PREFIX ."config") as $setting) {
+	foreach ($db->query("SELECT * FROM " . $DB_PREFIX . "config") as $setting) {
 		$config[$setting['key']] = $setting['value'];
 	}
 
@@ -1138,50 +1294,49 @@ function check_first_time()
 
 function NisUserLoggedIn()
 {
-	
+
 	return;
-    // if isset cookie auth
-    if (isset($_COOKIE['token']) && isset($_COOKIE['userId'])) {
+	global $db;
+	// if isset cookie auth
+	if (isset($_COOKIE['token']) && isset($_COOKIE['userId'])) {
 
-        // validate cookie
-        $cookieAuthHash = $_COOKIE['token'];
-        $cookieUserId = $_COOKIE['userId'];
+		// validate cookie
+		$cookieAuthHash = $_COOKIE['token'];
+		$cookieUserId = $_COOKIE['userId'];
 
-        // decrypt userId
-        $cookieUserId = openssl_decrypt($cookieUserId, 'aes-256-cbc', $cookieAuthHash . 'a-very-long-salt', 0);
+		// decrypt userId
+		$cookieUserId = openssl_decrypt($cookieUserId, 'aes-256-cbc', $cookieAuthHash . 'a-very-long-salt', 0);
 
-        // check if userId is valid
-        $userId = json_decode($cookieUserId, true);
+		// check if userId is valid
+		$userId = json_decode($cookieUserId, true);
+		$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        // check if the user exists in the database
-        $db = dbConnect();
-        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+		$sql = "SELECT * FROM users WHERE id = :id AND email = :email";
+		$stmt = $db->prepare($sql);
+		$stmt->execute(array(
+			':id' => $userId['id'],
+			':email' => $userId['email']
+		));
 
-        $sql = "SELECT * FROM users WHERE id = :id AND email = :email";
-        $stmt = $db->prepare($sql);
-        $stmt->execute(array(
-            ':id' => $userId['id'],
-            ':email' => $userId['email']
-        ));
+		$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		if (count($result) > 0) {
+			// validate auth hash
 
-        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        if (count($result) > 0) {
-            // validate auth hash
-            
-            if (password_verify($result[0]['email'] . $result[0]['id'] . $_SERVER['HTTP_USER_AGENT'] . session_id(), $cookieAuthHash)) {
-                // validate user id password
-            
-                if (password_verify($userId['password'], $result[0]['password'])) {
-                    $_SESSION['user'] = getUserData($result[0]['id']);
-					
+			if (password_verify($result[0]['email'] . $result[0]['id'] . $_SERVER['HTTP_USER_AGENT'] . session_id(), $cookieAuthHash)) {
+				// validate user id password
+
+				if (password_verify($userId['password'], $result[0]['password'])) {
+
+					// user is logged in
+
 					return true;
-                }
-            }
-        }
-    } else {
-        return false;
-    }
-    return false;
+				}
+			}
+		}
+	} else {
+		return false;
+	}
+	return false;
 }
 
 function showCriticalError($message, $details)
@@ -1312,18 +1467,18 @@ function get_col($id, $table, $col)
 {
 	global $db;
 	global $DB_PREFIX;
-	
+
 	$prefixTables = array(
-	'comments',
-	'issues',
-	'config',
-	'logs'
+		'comments',
+		'issues',
+		'config',
+		'logs'
 	);
-	
-	if(in_array($table, $prefixTables)) {
+
+	if (in_array($table, $prefixTables)) {
 		$table = $DB_PREFIX . $table;
 	}
-	
+
 	$result = $db->query("SELECT $col FROM $table WHERE id='$id'")->fetchAll();
 	return $result[0][$col];
 }
@@ -1331,13 +1486,13 @@ function get_col($id, $table, $col)
 // notify via email
 function notify($id, $subject, $body)
 {
-	
+
 	// check if mail is enabled
 	if (!function_exists('mail')) return;
 
 	global $db;
 	global $DB_PREFIX;
-	$result = $db->query("SELECT notify_emails FROM ". $DB_PREFIX ."issues WHERE id='$id'")->fetchAll();
+	$result = $db->query("SELECT notify_emails FROM " . $DB_PREFIX . "issues WHERE id='$id'")->fetchAll();
 	$to = $result[0]['notify_emails'];
 
 	if ($to != '') {
@@ -1383,7 +1538,7 @@ function setWatch($id, $addToWatch)
 	global $DB_PREFIX;
 	if ($_SESSION['t1t']['email'] == '') return;
 
-	$result = $db->query("SELECT notify_emails FROM ". $DB_PREFIX ."issues WHERE id='$id'")->fetchAll();
+	$result = $db->query("SELECT notify_emails FROM " . $DB_PREFIX . "issues WHERE id='$id'")->fetchAll();
 	$notify_emails = $result[0]['notify_emails'];
 
 	$emails = $notify_emails ? explode(",", $notify_emails) : array();
@@ -1394,7 +1549,7 @@ function setWatch($id, $addToWatch)
 
 	$notify_emails = implode(",", $emails);
 
-	$db->exec("UPDATE ". $DB_PREFIX ."issues SET notify_emails='$notify_emails' WHERE id='$id'");
+	$db->exec("UPDATE " . $DB_PREFIX . "issues SET notify_emails='$notify_emails' WHERE id='$id'");
 
 	if ($addToWatch) {
 		// log action
@@ -1440,7 +1595,7 @@ function getObfuscationSalt()
 {
 	global $db;
 	global $DB_PREFIX;
-	$OBFUSCATION_SALT = $db->query("SELECT value FROM ". $DB_PREFIX ."config WHERE key = 'seed'")->fetchAll()[0]['value'];
+	$OBFUSCATION_SALT = $db->query("SELECT value FROM " . $DB_PREFIX . "config WHERE key = 'seed'")->fetchAll()[0]['value'];
 	$OBFUSCATION_SALT = intval($OBFUSCATION_SALT);
 
 	return isset($OBFUSCATION_SALT) ? $OBFUSCATION_SALT : 0;
@@ -1511,8 +1666,10 @@ function insertJquery()
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 
 	<script src="//cdn.jsdelivr.net/npm/eruda"></script>
-<script>eruda.init();</script>
-	
+	<script>
+		eruda.init();
+	</script>
+
 	<!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css"> -->
 	<style>
 		<?php echo insertCss(); ?>h1 a {
@@ -1788,7 +1945,7 @@ function insertJquery()
 		.warning {
 			color: #fedd48;
 		}
-		
+
 		.blue {
 			color: #1DA1F2;
 		}
@@ -2230,19 +2387,19 @@ function insertJquery()
 		<h3 class="hiName">Hi, <?php echo $_SESSION['t1t']['username']; ?>!</h3>
 		<h1 class="projectName"><a href="?"><?php echo $TITLE; ?></a></h1>
 
-		<?php if($mode != 'admin') { ?>
+		<?php if ($mode != 'admin') { ?>
 			<button onclick="document.getElementById('create').showModal();document.getElementById('title').focus();">
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit">
-			<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-			<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-			</svg>
-			<?php
-			//  echo ($issue['id']==''?"Create":"Edit");
-			if (!isset($issue['id']) || $issue['id'] == '') {
-			echo 'New';
-			} else {
-			echo 'Edit';
-			} ?>
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit">
+					<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+					<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+				</svg>
+				<?php
+				//  echo ($issue['id']==''?"Create":"Edit");
+				if (!isset($issue['id']) || $issue['id'] == '') {
+					echo 'New';
+				} else {
+					echo 'Edit';
+				} ?>
 			</button>
 		<?php } ?>
 
@@ -2395,12 +2552,14 @@ function insertJquery()
 											<line x1="12" y1="8" x2="12" y2="12"></line>
 											<line x1="12" y1="16" x2="12.01" y2="16"></line>
 										</svg>
-										
+
 										<!--
 										<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-target"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
 									-->
 									<?php } else if ($issue['priority'] == 3) { ?>
-									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-circle"><circle cx="12" cy="12" r="10"></circle></svg>
+										<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-circle">
+											<circle cx="12" cy="12" r="10"></circle>
+										</svg>
 
 									<?php } else { ?>
 										<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-disc">
@@ -2457,10 +2616,10 @@ function insertJquery()
 
 
 
-					<?php } 
+					<?php }
 					if (count($issues) == 0) {
-						?><p style="text-align: center;">No issues found in this category</p>
-						<?php
+					?><p style="text-align: center;">No issues found in this category</p>
+					<?php
 					}
 					?>
 				</div>
@@ -2689,14 +2848,16 @@ function insertJquery()
 				}
 				?>
 
-				<span style="display: inline-block;"><h3>Users</h3><button onclick="document.getElementById('create').showModal();document.getElementById('title').focus();">
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit">
-			<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-			<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-			</svg>
-			New
-			</button></span>
-				
+				<span style="display: inline-block;">
+					<h3>Users</h3><button onclick="document.getElementById('create').showModal();document.getElementById('title').focus();">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit">
+							<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+							<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+						</svg>
+						New
+					</button>
+				</span>
+
 				<div class="issueList">
 					<?php
 					foreach ($USERS as $user) {
@@ -2718,11 +2879,19 @@ function insertJquery()
 								// check if user has admin rights
 								if ($user['role'] > 3) { ?>
 									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-award">
-									<circle cx="12" cy="8" r="7"></circle>
-									<polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
+										<circle cx="12" cy="8" r="7"></circle>
+										<polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
 									</svg>
 								<?php } else if ($user['role'] == 3) { ?>
-									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-life-buoy"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"></line><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"></line><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"></line><line x1="14.83" y1="9.17" x2="18.36" y2="5.64"></line><line x1="4.93" y1="19.07" x2="9.17" y2="14.83"></line></svg>
+									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-life-buoy">
+										<circle cx="12" cy="12" r="10"></circle>
+										<circle cx="12" cy="12" r="4"></circle>
+										<line x1="4.93" y1="4.93" x2="9.17" y2="9.17"></line>
+										<line x1="14.83" y1="14.83" x2="19.07" y2="19.07"></line>
+										<line x1="14.83" y1="9.17" x2="19.07" y2="4.93"></line>
+										<line x1="14.83" y1="9.17" x2="18.36" y2="5.64"></line>
+										<line x1="4.93" y1="19.07" x2="9.17" y2="14.83"></line>
+									</svg>
 								<?php } else if ($user['role'] == 0) { ?>
 									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-pause">
 										<rect x="6" y="4" width="4" height="16"></rect>
@@ -2830,12 +2999,12 @@ function insertJquery()
 
 
 						<div class="between">
-						<button onclick="this.innerHTML = loaderIcon(); this.firstElementChild.classList.add('loaderIcon'); window.ajaxify('?resetsettings');" style="background-color: #f85149; color: white;">Reset</button>
-						<button type="submit" onclick="this.innerHTML = loaderIcon(); this.firstElementChild.classList.add('loaderIcon');">Save</button>
-				</div>
+							<button onclick="this.innerHTML = loaderIcon(); this.firstElementChild.classList.add('loaderIcon'); window.ajaxify('?resetsettings');" style="background-color: #f85149; color: white;">Reset</button>
+							<button type="submit" onclick="this.innerHTML = loaderIcon(); this.firstElementChild.classList.add('loaderIcon');">Save</button>
+						</div>
 					</form>
 
-			</div>
+				</div>
 
 
 				<br>
@@ -2856,7 +3025,7 @@ function insertJquery()
 
 						if ($updateInfo['latest'] > $VERSION) { ?>
 							<h4>New update available! <a href="https://github.com/JMcrafter26/tiny-issue-tracker" target="_blank">Update Now</a></h4>
-							<?php } else if ($updateInfo['latest'] < $VERSION) { ?>
+						<?php } else if ($updateInfo['latest'] < $VERSION) { ?>
 							<h4>Beta Version ;)</h4>
 							<h5>Please check frequently for new (beta) updates and update to the stable version when it is out to get new features and bug fixes. <a href="https://github.com/JMcrafter26/tiny-issue-tracker" target="_blank">Check on Github</a></h5>
 							<?php } else {
@@ -2872,11 +3041,11 @@ function insertJquery()
 						</p>
 						<p>Release Notes:<br>
 						<div data-markdown="true"><?php
-								// replace \n with <br>
-								// echo str_replace("\n", "<br>", $updateInfo['notes']);
-								echo $updateInfo['notes'];
-							?>
-							</div>
+													// replace \n with <br>
+													// echo str_replace("\n", "<br>", $updateInfo['notes']);
+													echo $updateInfo['notes'];
+													?>
+						</div>
 						</p>
 					<?php }
 						}
@@ -2901,7 +3070,7 @@ function insertJquery()
 					$limit = 10;
 					$offset = ($page - 1) * $limit;
 					// get the log from the database
-					$LOG = $db->query("SELECT * FROM ". $DB_PREFIX ."logs ORDER BY entrytime DESC LIMIT $limit OFFSET $offset")->fetchAll();
+					$LOG = $db->query("SELECT * FROM " . $DB_PREFIX . "logs ORDER BY entrytime DESC LIMIT $limit OFFSET $offset")->fetchAll();
 					// get totalpages
 					$totalPages = ceil($db->query("SELECT COUNT(*) FROM logs")->fetchColumn() / $limit);
 					// if page is higher than totalpages
@@ -3778,4 +3947,5 @@ function insertJquery()
 	});
 </script>
 </body>
+
 </html>

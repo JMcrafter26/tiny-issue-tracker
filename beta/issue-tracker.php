@@ -91,7 +91,7 @@ if (isset($_POST["login"])) {
 		header("Location: ?");
 	} else {
 		$message = "Invalid username or password";
-		logAction('Login failed', 3, getIp() . ' tried to login to' . $_POST["u"] . ', but failed');
+		logAction('Login failed', 3, getIp() . ' tried to login as ' . $_POST["u"] . ', but failed');
 	}
 }
 
@@ -686,7 +686,12 @@ if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 	try {
 		$updateInfo = json_decode(file_get_contents("https://raw.githack.com/JMcrafter26/tiny-issue-tracker/main/version.json?rand=" . rand()), true);
 	} catch (Exception $e) {
-		$message += "Error getting update info";
+		$message += "An error occurred while getting update info";
+	}
+	
+	if(!$updateInfo || $updateInfo == '') {
+		header("Location: ?admin-panel&message=An error occurred while getting update info.");
+		exit;
 	}
 
 	$updateInfo['current_version'] = $VERSION;
@@ -2225,19 +2230,21 @@ function insertJquery()
 		<h3 class="hiName">Hi, <?php echo $_SESSION['t1t']['username']; ?>!</h3>
 		<h1 class="projectName"><a href="?"><?php echo $TITLE; ?></a></h1>
 
-		<button onclick="document.getElementById('create').showModal();document.getElementById('title').focus();">
+		<?php if($mode != 'admin') { ?>
+			<button onclick="document.getElementById('create').showModal();document.getElementById('title').focus();">
 			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit">
-				<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-				<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+			<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+			<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
 			</svg>
 			<?php
 			//  echo ($issue['id']==''?"Create":"Edit");
 			if (!isset($issue['id']) || $issue['id'] == '') {
-				echo 'New';
+			echo 'New';
 			} else {
-				echo 'Edit';
+			echo 'Edit';
 			} ?>
-		</button>
+			</button>
+		<?php } ?>
 
 		<div class="hide tips">
 			<div class="between">
@@ -2450,7 +2457,12 @@ function insertJquery()
 
 
 
-					<?php } ?>
+					<?php } 
+					if (count($issues) == 0) {
+						?><p style="text-align: center;">No issues found in this category</p>
+						<?php
+					}
+					?>
 				</div>
 
 
@@ -2677,8 +2689,14 @@ function insertJquery()
 				}
 				?>
 
-				<h3>Users</h3>
-
+				<span style="display: inline-block;"><h3>Users</h3><button onclick="document.getElementById('create').showModal();document.getElementById('title').focus();">
+			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit">
+			<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+			<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+			</svg>
+			New
+			</button></span>
+				
 				<div class="issueList">
 					<?php
 					foreach ($USERS as $user) {
@@ -2833,14 +2851,14 @@ function insertJquery()
 					</button>
 
 					<br>
-					<?php if (isset($updateInfo) && count($updateInfo) > 0) {
+					<?php if (isset($updateInfo) && count($updateInfo) > 3 && $updateInfo  != '') {
 						// if updateinfo time is longer than 1 week, unset it
 
 						if ($updateInfo['latest'] > $VERSION) { ?>
 							<h4>New update available! <a href="https://github.com/JMcrafter26/tiny-issue-tracker" target="_blank">Update Now</a></h4>
 							<?php } else if ($updateInfo['latest'] < $VERSION) { ?>
 							<h4>Beta Version ;)</h4>
-							<h5>Please check frequently for new (beta) updates and update when a stable version is out to get new features and bug fixes <a href="https://github.com/JMcrafter26/tiny-issue-tracker" target="_blank">Check on Github</a></h5>
+							<h5>Please check frequently for new (beta) updates and update to the stable version when it is out to get new features and bug fixes. <a href="https://github.com/JMcrafter26/tiny-issue-tracker" target="_blank">Check on Github</a></h5>
 							<?php } else {
 							if (isset($updateInfo['time']) && strtotime($updateInfo['time']) > strtotime("-1 week")) { ?>
 								<h4>No updates :)</h4>
@@ -2853,10 +2871,12 @@ function insertJquery()
 								Latest version: <?php echo $updateInfo['latest']; ?><br>
 						</p>
 						<p>Release Notes:<br>
-							<?php
+						<div data-markdown="true"><?php
 								// replace \n with <br>
-								echo str_replace("\n", "<br>", $updateInfo['notes']);
+								// echo str_replace("\n", "<br>", $updateInfo['notes']);
+								echo $updateInfo['notes'];
 							?>
+							</div>
 						</p>
 					<?php }
 						}

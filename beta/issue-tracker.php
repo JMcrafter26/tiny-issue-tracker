@@ -913,9 +913,13 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 				// the values are seperated by a comma and need to be converted to an [] array
 				$value = explode(",", $value);
 				$value = json_encode($value);
+				// if value starts with a space, remove it
+				if (substr($value, 0, 1) == " ") {
+					$value = substr($value, 1);
+				}
 			}
 
-			echo $key . " = " . $value . "<br>";
+			// echo $key . " = " . $value . "<br>";
 
 			// check if setting exists
 			if (isset($config[$key])) {
@@ -930,10 +934,20 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 	$oldSettings = $config;
 	$newSettings = $db->query("SELECT * FROM " . $DB_PREFIX . "config")->fetchAll();
 
+	// die states
+	// die(json_encode(array($oldSettings, $newSettings)));
+
 	// e.g. Show Footer: 1 -> 0
 	$diff = array();
 	foreach ($newSettings as $setting) {
 		if (!in_array($setting['key'], $settingsBlacklist)) {
+			if ($setting['key'] == "states") {
+				$setting['value'] = json_decode($setting['value']);
+				$setting['value'] = implode(", ", $setting['value']);
+				$oldSettings[$setting['key']] = json_decode($oldSettings[$setting['key']]);
+				$oldSettings[$setting['key']] = implode(", ", $oldSettings[$setting['key']]);
+			}
+
 			if ($oldSettings[$setting['key']] != $setting['value']) {
 				// if old settings key is 0 and new is 1 or vice versa, set them to true or false
 				if ($oldSettings[$setting['key']] == 0 && $setting['value'] == 1) {
@@ -1051,12 +1065,10 @@ function setDefaults()
 	if (!isset($config['project_title'])) {
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('project_title', 'My Project', '" . date("Y-m-d H:i:s") . "')");
 	}
-
 	if (!isset($config['states'])) {
-		$states = array(0 => "Active", 1 => "Resolved");
+		$states = array(0 => "Active Issues", 1 => "Resolved Issues");
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('states', '" . json_encode($states) . "', '" . date("Y-m-d H:i:s") . "')");
 	}
-
 	if (!isset($config['send_from'])) {
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('send_from', 'no-reply@example.com', '" . date("Y-m-d H:i:s") . "')");
 	}
@@ -1066,28 +1078,15 @@ function setDefaults()
 	if (!isset($config['show_footer'])) {
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('show_footer', '1', '" . date("Y-m-d H:i:s") . "')");
 	}
+	if (!isset($config['search'])) {
+		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('search', '0', '" . date("Y-m-d H:i:s") . "')");
+	}
 	if (!isset($config['allow_user_edits'])) {
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('allow_user_edits', '0', '" . date("Y-m-d H:i:s") . "')");
 	}
 	if (!isset($config['obfuscate_id'])) {
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('obfuscate_id', '0', '" . date("Y-m-d H:i:s") . "')");
 	}
-
-	// if (count($db->query("SELECT * FROM config WHERE key = 'seed'")->fetchAll()) < 1) {
-	// 	$db->exec("INSERT INTO config (key, value, entrytime) values('seed', '" . bin2hex(openssl_random_pseudo_bytes(4)) . "', '" . date("Y-m-d H:i:s") . "')");
-	// }
-	// if (count($db->query("SELECT * FROM config WHERE key = 'version'")->fetchAll()) < 1) {
-	// 	$db->exec("INSERT INTO config (key, value, entrytime) values('version', '$VERSION', '" . date("Y-m-d H:i:s") . "')");
-	// }
-	// if (count($db->query("SELECT * FROM config WHERE key = 'project_name'")->fetchAll()) < 1) {
-	// 	$db->exec("INSERT INTO config (key, value, entrytime) values('project_name', '$TITLE', '" . date("Y-m-d H:i:s") . "')");
-	// }
-	// if (count($db->query("SELECT * FROM config WHERE key = 'send_from'")->fetchAll()) < 1) {
-	// 	$db->exec("INSERT INTO config (key, value, entrytime) values('send_from', '$EMAIL', '" . date("Y-m-d H:i:s") . "')");
-	// }
-	// if (count($db->query("SELECT * FROM config WHERE key = 'log_actions'")->fetchAll()) < 1) {
-	// 	$db->exec("INSERT INTO config (key, value, entrytime) values('log_actions', '1', '" . date("Y-m-d H:i:s") . "')");
-	// }
 
 	unset($config);
 	// $config = $db->query("SELECT * FROM config")->fetchAll();
@@ -2423,7 +2422,7 @@ function insertJquery()
 					$style = "";
 				}
 
-				echo "<a href='{$_SERVER['PHP_SELF']}?status={$code}' alt='{$name} Issues' $style>{$name} Issues</a> | ";
+				echo "<a href='{$_SERVER['PHP_SELF']}?status={$code}' alt='{$name}' $style>{$name}</a> | ";
 			}
 
 			// if user is admin
@@ -2609,6 +2608,8 @@ function insertJquery()
 
 
 				</style>
+
+				<?php if($config['search'] == true){ ?>
 				<div class="searchContainer">
 					<div class="search">
 						<input type="text" id="searchInput" placeholder="Search..." />
@@ -2620,6 +2621,7 @@ function insertJquery()
 						</button>
 					</div>
 				</div>
+				<?php } ?>
 
 				<div class="issueList">
 					<?php
@@ -3085,6 +3087,7 @@ function insertJquery()
 							"states" => "string",
 							"send_from" => "string",
 							"show_footer" => "boolean",
+							"search" => "boolean",
 							"log_actions" => "boolean",
 							"obfuscate_id" => "boolean",
 							"allow_user_edits" => "boolean",
@@ -3097,11 +3100,13 @@ function insertJquery()
 						$settingInfo = array(
 							"show_footer" => "This will display a footer with \"Powered by Tiny Issue Tracker\" at the bottom of the page. Leave it enabled to support the project :) ",
 							"project_title" => "The title of the project. This will be displayed in the title of the page.",
-							"states" => "The states that issues can be in.",	
+							"states" => "The states / categories that issues can be in. Each state should be seperated by a comma. E.g. 'Open, Closed, In Progress'.",
 							"log_actions" => "Log actions to the database. This will log actions such as issue creation, deletion, and comments and will be displayed in the admin panel.",
 							"send_from" => "The email address that emails will be sent from. This should be a valid email address.",
 							"obfuscate_id" => "Obfuscate issue IDs in the URL. This will make the issue ID in the URL a random string instead of the issue ID so it's harder to guess.",
-							"allow_user_edits" => "Allow users to each other's issues. This is a beta feature and may have bugs. Use at your own risk. (Admins and mods can always edit issues)"
+							"allow_user_edits" => "Allow users to each other's issues. Admins and mods can always edit issues",
+							"search" => "[BETA FEATURE] Show the search bar at the top of the page. This will allow users to search for issues by title or description."
+
 						);
 
 						foreach ($settings as $key => $value) {
@@ -3120,7 +3125,11 @@ function insertJquery()
 								if ($key == "states") {
 									$settingName = "Issue States";
 									// value is an array [], seperate the values by a comma
-									$value = implode(", ", json_decode($value));
+									$value = implode(",", json_decode($value));
+								}
+
+								if ($key == "search") {
+									$settingName = "Search Function [BETA]";
 								}
 
 								// if type is boolean
@@ -3146,12 +3155,24 @@ function insertJquery()
 
 
 						<div class="between">
-							<button onclick="this.innerHTML = loaderIcon(); this.firstElementChild.classList.add('loaderIcon'); window.ajaxify('?resetsettings');" style="background-color: #f85149; color: white;">Reset</button>
+							<button style="background-color: #f85149; color: white;" onclick="document.getElementById('confirmResetSettings').showModal();" type="button">Reset Settings</button>
 							<button type="submit" onclick="this.innerHTML = loaderIcon(); this.firstElementChild.classList.add('loaderIcon');">Save</button>
 						</div>
 					</form>
 
 				</div>
+
+				<dialog id="confirmResetSettings" style="width: 300px; height: 170px;">
+						<form method="POST">
+							<label style="margin-top: 5px;">Are you sure you want to reset all settings?</label>
+							<p style="font-size: 0.8rem; opacity: 0.7;">This will reset all settings to their default values.</p>
+							<br>
+							<div>
+								<button onclick="document.getElementById('confirmResetSettings').close();" class="left">Cancel</button>
+								<a class="right important btn" id="confirmResetSettingsButton" href="?resetsettings&admin-panel" onclick="showLoader(this);">Reset</a>
+							</div>
+						</form>
+					</dialog>
 
 
 				<br>

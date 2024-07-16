@@ -1065,7 +1065,7 @@ function isAdmin()
 	$users = $db->query("SELECT * FROM users WHERE username='{$_SESSION['t1t']['username']}'")->fetchAll();
 	// update session
 	$_SESSION['t1t']['role'] = $users[0]['role'];
-	return $users[0]['role'] >= 4;
+	return $users[0]['role'] == 5;
 }
 
 function isMod()
@@ -2534,7 +2534,7 @@ function insertJquery()
 				<style>
 					.searchContainer {
 						display: flex;
-						margin: 10px 0;
+						margin: 10px 0; 
 						width: 100%;
 						justify-content: space-between;
 					}
@@ -2542,7 +2542,7 @@ function insertJquery()
 					.search {
 						display: flex;
 						width: 80%;
-						max-width: 500px;
+						max-width: 550px;
 						overflow: hidden;
 					}
 
@@ -2552,8 +2552,58 @@ function insertJquery()
 						font-size: 1em;
 					}
 
+					.searchContainer .notMobile {
+						display: flex;
+					}
+
+					.searchContainer .mobile {
+						display: none;
+					}
+
+					.searchContainer .mobile #sortBy {
+						/* display on the right */
+						margin-left: auto;
+
+					}
+
+					@media (max-width: 600px) {
+						.searchContainer .mobile {
+							display: flex;
+						}
+
+						.searchContainer {
+							display: block;
+						}
+
+						.search {
+							width: 100%;
+							max-width: 100%;
+						}
+
+						.searchContainer .notMobile {
+							display: none;
+						}
+					}
+
+
+
 				</style>
 				<div class="searchContainer">
+					<div class="mobile">
+						<button id="tagsBtn">
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-tag">
+								<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+								<line x1="7" y1="7" x2="7.01" y2="7"></line>
+							</svg>
+						</button>
+
+						<!-- sort by - dropdown -->
+						<select id="sortBy">
+							<option value="0">Sort by</option>
+							<option value="1">Priority</option>
+							<option value="4">Date</option>
+						</select>
+					</div>
 					<div class="search">
 						<input type="text" id="searchInput" placeholder="Search..." />
 						<button id="searchButton">
@@ -2563,7 +2613,7 @@ function insertJquery()
 							</svg>
 						</button>
 					</div>
-					<div class="right" style="display: flex;">
+					<div class="right notMobile">
 						<button id="tagsBtn" style="margin-left: 10px;">
 							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-tag">
 								<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>

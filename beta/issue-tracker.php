@@ -42,8 +42,7 @@ if (!defined("TIT_INCLUSION")) {
 	$NOTIFY["ISSUE_PRIORITY"]   = TRUE;     // issue status change (solved / unsolved)
 	$NOTIFY["COMMENT_CREATE"]   = TRUE;     // comment post
 
-	// Modify this issue types
-	$STATUSES = array(0 => "Active", 1 => "Resolved");
+	$STATUSES = array(0 => "Active", 1 => "Resolved"); // this is for legacy purposes only. The values are stored in the database now.
 }
 ////////////////////////////////////////////////////////////////////////
 ////// DO NOT EDIT BEYOND THIS IF YOU DON'T KNOW WHAT YOU'RE DOING /////
@@ -113,6 +112,7 @@ if (isset($_GET['logout'])) {
 
 $TITLE = $config['project_title'];
 $EMAIL = $config['send_from'];
+$STATUSES = json_decode($config['states'], true);
 $SHOWFOOTER = $config['show_footer'];
 $obfuscateId = $config['obfuscate_id'];
 
@@ -492,11 +492,14 @@ if (isset($_POST["createissue"])) {
 	$notify_emails = implode(",", $emails);
 
 
-	if ($id == '')
+	if ($id == '') {
 		$query = "INSERT INTO " . $DB_PREFIX . "issues (title, description, user, priority, notify_emails, entrytime) values('$title','$description','$user','$priority','$notify_emails','$now')"; // create
-	else
-		$query = "UPDATE " . $DB_PREFIX . "issues SET title='$title', description='$description' WHERE id='$id'"; // edit
-
+	} else {
+		// check if user is the creator of the issue or mod
+		if (isMod() || $_SESSION['t1t']['username'] == get_col($id, "issues", "user") || canEdit()) {
+			$query = "UPDATE " . $DB_PREFIX . "issues SET title='$title', description='$description' WHERE id='$id'"; // edit
+		}
+	}
 	if (trim($title) != '') {     // title cant be blank
 		@$db->exec($query);
 		if ($id == '') {
@@ -541,7 +544,7 @@ if (isset($_GET["deleteissue"])) {
 	$title = get_col($id, "issues", "title");
 
 	// only the issue creator or admin can delete issue
-	if (isMod() || $_SESSION['t1t']['username'] == get_col($id, "issues", "user")) {
+	if (canEdit() || isMod() || $_SESSION['t1t']['username'] == get_col($id, "issues", "user")) {
 		@$db->exec("DELETE FROM " . $DB_PREFIX . "issues WHERE id='$id'");
 		@$db->exec("DELETE FROM " . $DB_PREFIX . "comments WHERE issue_id='$id'");
 
@@ -905,6 +908,13 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 				$value = 0;
 			}
 
+			// if key is states
+			if ($key == "states") {
+				// the values are seperated by a comma and need to be converted to an [] array
+				$value = explode(",", $value);
+				$value = json_encode($value);
+			}
+
 			echo $key . " = " . $value . "<br>";
 
 			// check if setting exists
@@ -919,14 +929,39 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 	// get difference between old and new settings
 	$oldSettings = $config;
 	$newSettings = $db->query("SELECT * FROM " . $DB_PREFIX . "config")->fetchAll();
+
+	// e.g. Show Footer: 1 -> 0
+	$diff = array();
 	foreach ($newSettings as $setting) {
-		$newSettings[$setting['key']] = $setting['value'];
+		if (!in_array($setting['key'], $settingsBlacklist)) {
+			if ($oldSettings[$setting['key']] != $setting['value']) {
+				// if old settings key is 0 and new is 1 or vice versa, set them to true or false
+				if ($oldSettings[$setting['key']] == 0 && $setting['value'] == 1) {
+					$oldSettings[$setting['key']] = 'false';
+					$setting['value'] = 'true';
+				} else if ($oldSettings[$setting['key']] == 1 && $setting['value'] == 0) {
+					$oldSettings[$setting['key']] = 'true';
+					$setting['value'] = 'false';
+				}
+				$diff[$setting['key']] = $oldSettings[$setting['key']] . ' -> ' . $setting['value'];
+			}
+		}
 	}
-	$diff = array_diff_assoc($oldSettings, $newSettings);
+
+	$formattedDiff = '';
+	foreach ($diff as $key => $value) {
+		$formattedDiff .= $key . ': ' . $value . ', ';
+	}
+	// if last char is comma, remove it
+	if (substr($formattedDiff, -2) == ', ') {
+		$formattedDiff = substr($formattedDiff, 0, -2);
+	}
+
 
 	// log action
-	logAction('Settings saved', 1, 'Settings saved by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') with changes: ' . json_encode($diff));
-
+	if(count($diff) > 0) {
+		logAction('Settings saved', 1, 'Settings saved by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') with changes: ' . $formattedDiff);
+	}
 	// logAction('Settings saved', 1, 'Settings saved by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 	header("Location: ?admin-panel&message=Settings saved");
 }
@@ -1016,6 +1051,12 @@ function setDefaults()
 	if (!isset($config['project_title'])) {
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('project_title', 'My Project', '" . date("Y-m-d H:i:s") . "')");
 	}
+
+	if (!isset($config['states'])) {
+		$states = array(0 => "Active", 1 => "Resolved");
+		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('states', '" . json_encode($states) . "', '" . date("Y-m-d H:i:s") . "')");
+	}
+
 	if (!isset($config['send_from'])) {
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('send_from', 'no-reply@example.com', '" . date("Y-m-d H:i:s") . "')");
 	}
@@ -1025,11 +1066,12 @@ function setDefaults()
 	if (!isset($config['show_footer'])) {
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('show_footer', '1', '" . date("Y-m-d H:i:s") . "')");
 	}
+	if (!isset($config['allow_user_edits'])) {
+		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('allow_user_edits', '0', '" . date("Y-m-d H:i:s") . "')");
+	}
 	if (!isset($config['obfuscate_id'])) {
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('obfuscate_id', '0', '" . date("Y-m-d H:i:s") . "')");
 	}
-
-
 
 	// if (count($db->query("SELECT * FROM config WHERE key = 'seed'")->fetchAll()) < 1) {
 	// 	$db->exec("INSERT INTO config (key, value, entrytime) values('seed', '" . bin2hex(openssl_random_pseudo_bytes(4)) . "', '" . date("Y-m-d H:i:s") . "')");
@@ -1076,6 +1118,11 @@ function isMod()
 	// update session
 	$_SESSION['t1t']['role'] = $users[0]['role'];
 	return $users[0]['role'] >= 3;
+}
+
+function canEdit() {
+	global $config;
+	return $config['allow_user_edits'];
 }
 
 // check credentials, returns -1 if not okay
@@ -2400,7 +2447,7 @@ function insertJquery()
 		<h3 class="hiName">Hi, <?php echo $_SESSION['t1t']['username']; ?>!</h3>
 		<h1 class="projectName"><a href="?"><?php echo $TITLE; ?></a></h1>
 
-		<?php if ($mode != 'admin') { ?>
+		<?php if (($mode != 'admin') && (!isset($issue['id']) || $issue['id'] == '' || (canEdit() || (isMod() == true || (isset($issue['user']) && $issue['user'] == $_SESSION['t1t']['username']))))) { ?>
 			<button onclick="document.getElementById('create').showModal();document.getElementById('title').focus();">
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-edit">
 					<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -2443,6 +2490,7 @@ function insertJquery()
 			</button>
 		</div>
 
+		<?php if (($mode != 'admin') && (!isset($issue['id']) || $issue['id'] == '' || (canEdit() || (isMod() == true || (isset($issue['user']) && $issue['user'] == $_SESSION['t1t']['username']))))) { ?>
 		<dialog id="create" style="max-width: 90%;">
 			<form method="POST" style="position: relative;" onsubmit="
 				showLoader(this);
@@ -2521,6 +2569,7 @@ function insertJquery()
 
 			</form>
 		</dialog>
+		<?php } ?>
 
 		<?php if ($mode == "list") : ?>
 			<div id="list">
@@ -2534,76 +2583,33 @@ function insertJquery()
 				<style>
 					.searchContainer {
 						display: flex;
+						justify-content: center;
 						margin: 10px 0; 
-						width: 100%;
-						justify-content: space-between;
+						width: 101%;
 					}
 
 					.search {
 						display: flex;
-						width: 80%;
-						max-width: 550px;
-						overflow: hidden;
+						width: 100%;
 					}
 
 					.search input {
 						width: 100%;
 						padding: 10px;
 						font-size: 1em;
+
+						margin-right: 0px;
+						border-radius: 6px 0 0 6px;
 					}
 
-					.searchContainer .notMobile {
-						display: flex;
+					.search button {
+						margin-left: 0px;
+						border-radius: 0 6px 6px 0;
 					}
-
-					.searchContainer .mobile {
-						display: none;
-					}
-
-					.searchContainer .mobile #sortBy {
-						/* display on the right */
-						margin-left: auto;
-
-					}
-
-					@media (max-width: 600px) {
-						.searchContainer .mobile {
-							display: flex;
-						}
-
-						.searchContainer {
-							display: block;
-						}
-
-						.search {
-							width: 100%;
-							max-width: 100%;
-						}
-
-						.searchContainer .notMobile {
-							display: none;
-						}
-					}
-
 
 
 				</style>
 				<div class="searchContainer">
-					<div class="mobile">
-						<button id="tagsBtn">
-							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-tag">
-								<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
-								<line x1="7" y1="7" x2="7.01" y2="7"></line>
-							</svg>
-						</button>
-
-						<!-- sort by - dropdown -->
-						<select id="sortBy">
-							<option value="0">Sort by</option>
-							<option value="1">Priority</option>
-							<option value="4">Date</option>
-						</select>
-					</div>
 					<div class="search">
 						<input type="text" id="searchInput" placeholder="Search..." />
 						<button id="searchButton">
@@ -2612,21 +2618,6 @@ function insertJquery()
 								<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
 							</svg>
 						</button>
-					</div>
-					<div class="right notMobile">
-						<button id="tagsBtn" style="margin-left: 10px;">
-							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-tag">
-								<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
-								<line x1="7" y1="7" x2="7.01" y2="7"></line>
-							</svg>
-						</button>
-
-						<!-- sort by - dropdown -->
-						<select id="sortBy" style="margin-left: 10px;">
-							<option value="0">Sort by</option>
-							<option value="1">Priority</option>
-							<option value="4">Date</option>
-						</select>
 					</div>
 				</div>
 
@@ -2637,10 +2628,10 @@ function insertJquery()
 
 					?>
 
-						<div class="issueItemParent" style="text-decoration: none; cursor: pointer;" data-longclick="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo (isMod() || $_SESSION['t1t']['username'] === $issue['user']); ?>" onmousedown="if(event.button == 1) {window.open('<?php echo $_SERVER['PHP_SELF']; ?>?id=<?php echo $issue['id']; ?>'); return false;}" onclick="if (window.getSelection().toString() == '') { 
+						<div class="issueItemParent" style="text-decoration: none; cursor: pointer;" data-longclick="true" data-issueId="<?php echo $issue['id']; ?>"  data-allowdelete="<?php echo (canEdit() || isMod() || $_SESSION['t1t']['username'] === $issue['user']); ?>" onmousedown="if(event.button == 1) {window.open('<?php echo $_SERVER['PHP_SELF']; ?>?id=<?php echo $issue['id']; ?>'); return false;}" onclick="if (window.getSelection().toString() == '') { 
 							window.ajaxify('<?php echo $_SERVER['PHP_SELF']; ?>?id=<?php echo $issue['id']; ?>');
 						}">
-							<div class="issueItem" data-ctx="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo (isMod() || $_SESSION['t1t']['username'] === $issue['user']); ?>">
+							<div class="issueItem" data-ctx="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo (canEdit() || isMod() || $_SESSION['t1t']['username'] === $issue['user']); ?>">
 								<span class="issueStatus <?php
 															if ($issue['priority'] == 1) {
 																echo 'important';
@@ -2972,6 +2963,14 @@ function insertJquery()
 
 				<div class="issueList">
 					<?php
+					$userRoles = array(
+						0 => 'Banned',
+						1 => 'Guest',
+						2 => 'User',
+						3 => 'Moderator',
+						4 => 'Admin',
+						5 => 'Super Admin'
+					);
 					foreach ($USERS as $user) {
 					?>
 
@@ -3019,15 +3018,19 @@ function insertJquery()
 							<div class="itemBody">
 								<div class="issueTitle">
 									<span>
-										<span style="user-select: all;"><?php echo $user['username']; ?></span> - <span style="opacity: 0.7; user-select: all;"><?php echo $user['email']; ?></span>
+										<span style="user-select: all;"><?php echo $user['username']; ?></span><?php 
+										if ($user['email']) {
+										?>
+										- <span style="opacity: 0.7; user-select: all;"><?php echo $user['email']; ?></span>
 									</span>
+									<?php } ?>
 									<span class="watchStatus">
 
 									</span>
 								</div>
 								<div class="itemDetails">
 									<div class="left">
-										Created <span title="<?php echo $user['entrytime']; ?>"><?php echo timeToString($user['entrytime']); ?></span> ago</span>
+										Created <span onclick="alert(this.title);" title="<?php echo $user['entrytime']; ?>"><?php echo timeToString($user['entrytime']); ?></span> ago</span> - User ID: <?php echo $user['id']; ?> - <?php echo $userRoles[$user['role']]; ?> (<?php echo $user['role']; ?>)
 									</div>
 								</div>
 							</div>
@@ -3078,11 +3081,27 @@ function insertJquery()
 						);
 
 						$type = array(
-							"show_footer" => "boolean",
 							"project_title" => "string",
-							"log_actions" => "boolean",
+							"states" => "string",
 							"send_from" => "string",
+							"show_footer" => "boolean",
+							"log_actions" => "boolean",
 							"obfuscate_id" => "boolean",
+							"allow_user_edits" => "boolean",
+						);
+
+						// sort the settings by the $type keys
+						$settings = array_merge(array_flip(array_keys($type)), $settings);
+
+
+						$settingInfo = array(
+							"show_footer" => "This will display a footer with \"Powered by Tiny Issue Tracker\" at the bottom of the page. Leave it enabled to support the project :) ",
+							"project_title" => "The title of the project. This will be displayed in the title of the page.",
+							"states" => "The states that issues can be in.",	
+							"log_actions" => "Log actions to the database. This will log actions such as issue creation, deletion, and comments and will be displayed in the admin panel.",
+							"send_from" => "The email address that emails will be sent from. This should be a valid email address.",
+							"obfuscate_id" => "Obfuscate issue IDs in the URL. This will make the issue ID in the URL a random string instead of the issue ID so it's harder to guess.",
+							"allow_user_edits" => "Allow users to each other's issues. This is a beta feature and may have bugs. Use at your own risk. (Admins and mods can always edit issues)"
 						);
 
 						foreach ($settings as $key => $value) {
@@ -3093,16 +3112,32 @@ function insertJquery()
 								// capitalize first letter and every letter after a space
 								$settingName = ucwords($settingName);
 
+								if(!isset($settingInfo[$key])) {
+									$settingInfo[$key] = "No information available.";
+								}
+
+								// if name is states
+								if ($key == "states") {
+									$settingName = "Issue States";
+									// value is an array [], seperate the values by a comma
+									$value = implode(", ", json_decode($value));
+								}
+
 								// if type is boolean
+							?>
+									<label><?php echo $settingName; ?> <span title="<?php echo $settingInfo[$key]; ?>" style="font-size: 0.8em; opacity: 0.7;" onclick="alert(this.title);">
+									<svg xmlns="http://www.w3.org/2000/svg"
+									style="margin-top: -3px;"
+									viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-help-circle"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+									</span></label>
+							<?php
 								if ($type[$key] == "boolean") { ?>
-									<label><?php echo $settingName; ?></label>
 									<select style="width: 100%;" name="<?php echo $key; ?>">
 										<option value="1" <?php echo ($value == 1 ? "selected" : ""); ?>>Yes</option>
 										<option value="0" <?php echo ($value == 0 ? "selected" : ""); ?>>No</option>
 									</select>
 									<br>
 								<?php } else { ?>
-									<label><?php echo $settingName; ?></label>
 									<input style="width: calc(100% - 20px);" type="text" name="<?php echo $key; ?>" value="<?php echo $value; ?>" />
 									<br>
 						<?php }
@@ -3577,9 +3612,13 @@ function insertJquery()
 				// get the action
 				var action = ctxAction.dataset.ctxaction;
 				if (action == 'edit') {
-					optionCount++;
-					ctxAction.href = `?editissue&id=${issueId}`;
-					ctxAction.style.display = 'block';
+					if (allowDelete == 'false' || !allowDelete) {
+						ctxAction.style.display = 'none';
+					} else {
+						ctxAction.style.display = 'block';
+						optionCount++;
+						ctxAction.href = `?editissue&id=${issueId}`;
+					}
 				} else if (action == 'delete') {
 					// if allow delete is false, hide the delete button
 					if (allowDelete == 'false' || !allowDelete) {
@@ -3602,7 +3641,9 @@ function insertJquery()
 
 			const confirmDeleteButton = document.getElementById('confirmDeleteButton');
 			confirmDeleteButton.href = `?deleteissue&id=${issueId}`;
-			document.getElementById('submitFormBtn').innerHTML = 'Save';
+			if(document.getElementById('submitFormBtn')) {
+				document.getElementById('submitFormBtn').innerHTML = 'Save';
+			}
 
 		} else if (isLink) {
 			ctxActions.forEach(ctxAction => {
@@ -3678,8 +3719,9 @@ function insertJquery()
 			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}`;
 			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}`;
 			// change submitFormBtn to edit
-			document.getElementById('submitFormBtn').innerHTML = 'Save';
-
+			if(document.getElementById('submitFormBtn')) {
+				document.getElementById('submitFormBtn').innerHTML = 'Save';
+			}
 
 		} else {
 			ctxActions.forEach(ctxAction => {
@@ -3821,8 +3863,9 @@ function insertJquery()
 			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}`;
 			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}`;
 			// change submitFormBtn to edit
-			document.getElementById('submitFormBtn').innerHTML = 'Save';
-		} else {
+			if(document.getElementById('submitFormBtn')) {
+				document.getElementById('submitFormBtn').innerHTML = 'Save';
+			}		} else {
 			// loop through all ctx actions
 			ctxActions.forEach(ctxAction => {
 				if (ctxAction.dataset.ctxaction == 'edit') {
@@ -4037,9 +4080,12 @@ function insertJquery()
 
 		// if in url editissue is set, show the dialog
 		if (window.location.search.includes('editissue')) {
-			document.getElementById('create').className = '';
-			document.getElementById('create').showModal();
-			document.getElementById('title').focus();
+			// check if create dialog exists
+			if (document.getElementById('create')) {
+				document.getElementById('create').className = '';
+				document.getElementById('create').showModal();
+				document.getElementById('title').focus();
+			}
 			// replace the editissue in the url with nothing (only remove the parameter, keep the rest)
 			var url = window.location.href;
 			url = url.replace('editissue&', '');

@@ -2492,7 +2492,7 @@ function insertJquery()
 			</button>
 		</div>
 
-		<?php if (($mode != 'admin') && (!isset($issue['id']) || $issue['id'] == '' || (canEdit() || (isMod() == true || (isset($issue['user']) && $issue['user'] == $_SESSION['t1t']['username']))))) { ?>
+		<?php if (!isset($issue['id']) || $issue['id'] == '' || (canEdit() || (isMod() == true || (isset($issue['user']) && $issue['user'] == $_SESSION['t1t']['username'])))) { ?>
 			<dialog id="create" style="max-width: 90%;">
 				<form method="POST" style="position: relative;" onsubmit="
 				showLoader(this);
@@ -3120,7 +3120,7 @@ function insertJquery()
 
 
 						$settingInfo = array(
-							"show_footer" => "This will display a footer with \"Powered by Tiny Issue Tracker\" at the bottom of the page. Leave it enabled to support the project :) ",
+							"show_footer" => "This will display a footer with 'Powered by Tiny Issue Tracker' at the bottom of the page. Leave it enabled to support the project :) ",
 							"project_title" => "The title of the project. This will be displayed in the title of the page.",
 							"states" => "The states / categories that issues can be in. Each state should be seperated by a comma. E.g. 'Open, Closed, In Progress'.",
 							"log_actions" => "Log actions to the database. This will log actions such as issue creation, deletion, and comments and will be displayed in the admin panel.",

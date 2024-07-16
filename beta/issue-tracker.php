@@ -1065,7 +1065,7 @@ function isAdmin()
 	$users = $db->query("SELECT * FROM users WHERE username='{$_SESSION['t1t']['username']}'")->fetchAll();
 	// update session
 	$_SESSION['t1t']['role'] = $users[0]['role'];
-	return $users[0]['role'] == 5;
+	return $users[0]['role'] >= 4;
 }
 
 function isMod()

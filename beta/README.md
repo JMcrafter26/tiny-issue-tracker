@@ -17,7 +17,10 @@ You can run the script either from the command line or from the browser.
 
 ## New features
 
-- Change settings directly from the admin panel.
+- More options in the admin panel.
+- Export action logs to CSV.
+- Search function [ALPHA].
+- Tags [ALPHA].
 - Bug fixes and improvements.
 - ...
 - To update the database schema, run the `upgrade.php` script.

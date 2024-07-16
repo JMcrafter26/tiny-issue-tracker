@@ -128,219 +128,221 @@ if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password'])
 	}
 ?>
 	<html lang='en'>
-<head>
-    <title>Tiny Issue Tracker</title>
-    <meta name='viewport' content='width=device-width, initial-scale=1'>
-    <style>
-		<?php echo insertCSS(); ?>
-        .container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 80vh;
-            margin-top: 0;
-        }
 
-        label {
-            display: block;
-        }
-
-        h2 {
-            text-align: center;
-        }
-
-        p {
-            text-align: center;
-        }
-
-        form input {
-            width: 100%;
-            font-family: sans-serif;
-            font-size: 11px;
-        }
-
-        form #loginBtn {
-            cursor: pointer;
-            transition: all 0.25s ease-in-out;
-            width: 100%;
-            font-size: 17px;
-        }
-
-        form {
-            padding: 20px;
-            width: 250px;
-            border: 1px solid var(--border);
-            border-radius: 20px;
-        }
-
-        @media only screen and (max-width: 450px) {
-            form {
-                width: 100%;
-            }
-        }
-
-        .error {
-            color: #f85149;
-            text-align: center;
-            font-size: 12px;
-            margin-bottom: -15px;
-        }
-
-        .forgot-password {
-            font-size: 10px;
-            text-decoration: none;
-            display: block;
-            text-align: right;
-            margin-top: 5px;
-            margin-bottom: 15px;
-        }
-        #footer {
-            padding: 10px 0 0 0;
-            text-align: center;
-            margin-top: 20px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-
-        #footer svg {
-            transition: all 0.25s ease-in-out;
-            font-size: 12px;
-            height: 12px;
-        }
-
-
-        #footer:hover svg {
-            /* add electrical effect with yellow particles */
-            animation: electric 0.5s infinite;
-            animation-timing-function: ease-in-out;
-        }
-
-        #footer a {
-            transition: color 0.25s ease-in-out;
-        }
-
-        #footer:hover a {
-            color: #fedd48;
-            text-decoration: none;
-        }
-
-        @keyframes electric {
-            0% {
-                filter: url(#sharp-drop-shadow) drop-shadow(0 0 7px rgb(254, 221, 72, 0.7));
-                transform: rotate(0deg);
-            }
-
-            25% {
-                filter: url(#sharp-drop-shadow) drop-shadow(0 0 10px #fedd48);
-                transform: rotate(2.5deg);
-            }
-
-            50% {
-                filter: url(#sharp-drop-shadow) drop-shadow(0 0 12px #fedd48);
-                transform: rotate(5deg);
-            }
-
-            75% {
-                filter: url(#sharp-drop-shadow) drop-shadow(0 0 15px #fedd48);
-                transform: rotate(2.5deg);
-            }
-
-            100% {
-                filter: url(#sharp-drop-shadow) drop-shadow(0 0 16px rgb(254, 221, 72, 0.7));
-                transform: rotate(0deg);
-            }
-        }
-
-        .loaderIcon {
-			animation: spin 1s linear infinite;
-			width: 1em;
-			height: 1em;
-			vertical-align: middle;		}
-
-		@keyframes spin {
-			0% {
-				transform: rotate(0deg);
+	<head>
+		<title>Tiny Issue Tracker</title>
+		<meta name='viewport' content='width=device-width, initial-scale=1'>
+		<style>
+			<?php echo insertCSS(); ?>.container {
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				height: 80vh;
+				margin-top: 0;
 			}
 
-			100% {
-				transform: rotate(360deg);
+			label {
+				display: block;
 			}
-		}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <form style="position: relative;" id="loginForm" action="?" method="POST">
-            <h2>
-                <?php echo $TITLE; ?> - Issue Tracker
-            </h2>
-            <p class="error">
-                <?php echo $message; ?>
-            </p>
-            <br>
-            <label>Username</label><input type="text" name="u" />
-            <label>Password</label><input type="password" name="p" />
-            <a class="forgot-password" href="?forgot-password">Forgot Password?</a>
-            <label></label><button type="submit" name="login" id="loginBtn">Sign In</button>
-        </form>
-    </div>
 
-    <?php if ($SHOWFOOTER) { ?>
-    <div id="footer">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" class="feather feather-zap">
-            <defs>
-                <filter id="sharp-drop-shadow" x="-50%" y="-50%" width="200%" height="200%">
-                    <feGaussianBlur in="SourceAlpha" stdDeviation="1" />
-                    <feOffset dx="0" dy="0" result="offsetblur" />
-                    <feFlood flood-color="#fedd48" />
-                    <feComposite in2="offsetblur" operator="in" />
-                    <feMerge>
-                        <feMergeNode />
-                        <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                </filter>
-            </defs>
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-        </svg>
-        Powered by <a href="https://github.com/JMcrafter26/tiny-issue-tracker" alt="Tiny Issue Tracker"
-            target="_blank">Tiny Issue Tracker</a>
-    </div>
-    <?php } ?>
-    <script>
-        function loaderIcon() {
-            return '<svg class="loaderIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-loader"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>';
-        }
-        
-        document.getElementById('loginBtn').addEventListener('click', function() {
-            showLoader();
-        });
-        
+			h2 {
+				text-align: center;
+			}
 
-        function showLoader() {
-        // prevent form from submitting
-        let form = document.getElementById('loginForm');
+			p {
+				text-align: center;
+			}
+
+			form input {
+				width: 100%;
+				font-family: sans-serif;
+				font-size: 11px;
+			}
+
+			form #loginBtn {
+				cursor: pointer;
+				transition: all 0.25s ease-in-out;
+				width: 100%;
+				font-size: 17px;
+			}
+
+			form {
+				padding: 20px;
+				width: 250px;
+				border: 1px solid var(--border);
+				border-radius: 20px;
+			}
+
+			@media only screen and (max-width: 450px) {
+				form {
+					width: 100%;
+				}
+			}
+
+			.error {
+				color: #f85149;
+				text-align: center;
+				font-size: 12px;
+				margin-bottom: -15px;
+			}
+
+			.forgot-password {
+				font-size: 10px;
+				text-decoration: none;
+				display: block;
+				text-align: right;
+				margin-top: 5px;
+				margin-bottom: 15px;
+			}
+
+			#footer {
+				padding: 10px 0 0 0;
+				text-align: center;
+				margin-top: 20px;
+				cursor: pointer;
+				font-size: 12px;
+			}
+
+			#footer svg {
+				transition: all 0.25s ease-in-out;
+				font-size: 12px;
+				height: 12px;
+			}
 
 
-		var loader = document.createElement('div');
-		loader.style.position = 'absolute';
-		loader.style.top = '0';
-		loader.style.left = '0';
-		loader.style.width = '100%';
-        loader.style.borderRadius = '20px';
-		loader.style.height = '100%';
-		loader.style.backgroundColor = 'rgba(0,0,0,0.2)';
-		loader.style.zIndex = '1000';
-		loader.style.display = 'flex';
-		loader.style.justifyContent = 'center';
-		loader.style.alignItems = 'center';
-		loader.innerHTML = loaderIcon();
+			#footer:hover svg {
+				/* add electrical effect with yellow particles */
+				animation: electric 0.5s infinite;
+				animation-timing-function: ease-in-out;
+			}
 
-        form.appendChild(loader);
-	}
-    </script>
-</body>
-</html>
+			#footer a {
+				transition: color 0.25s ease-in-out;
+			}
+
+			#footer:hover a {
+				color: #fedd48;
+				text-decoration: none;
+			}
+
+			@keyframes electric {
+				0% {
+					filter: url(#sharp-drop-shadow) drop-shadow(0 0 7px rgb(254, 221, 72, 0.7));
+					transform: rotate(0deg);
+				}
+
+				25% {
+					filter: url(#sharp-drop-shadow) drop-shadow(0 0 10px #fedd48);
+					transform: rotate(2.5deg);
+				}
+
+				50% {
+					filter: url(#sharp-drop-shadow) drop-shadow(0 0 12px #fedd48);
+					transform: rotate(5deg);
+				}
+
+				75% {
+					filter: url(#sharp-drop-shadow) drop-shadow(0 0 15px #fedd48);
+					transform: rotate(2.5deg);
+				}
+
+				100% {
+					filter: url(#sharp-drop-shadow) drop-shadow(0 0 16px rgb(254, 221, 72, 0.7));
+					transform: rotate(0deg);
+				}
+			}
+
+			.loaderIcon {
+				animation: spin 1s linear infinite;
+				width: 1em;
+				height: 1em;
+				vertical-align: middle;
+			}
+
+			@keyframes spin {
+				0% {
+					transform: rotate(0deg);
+				}
+
+				100% {
+					transform: rotate(360deg);
+				}
+			}
+		</style>
+	</head>
+
+	<body>
+		<div class="container">
+			<form style="position: relative;" id="loginForm" action="?" method="POST">
+				<h2>
+					<?php echo $TITLE; ?> - Issue Tracker
+				</h2>
+				<p class="error">
+					<?php echo $message; ?>
+				</p>
+				<br>
+				<label>Username</label><input type="text" name="u" />
+				<label>Password</label><input type="password" name="p" />
+				<a class="forgot-password" href="?forgot-password">Forgot Password?</a>
+				<label></label><button type="submit" name="login" id="loginBtn">Sign In</button>
+			</form>
+		</div>
+
+		<?php if ($SHOWFOOTER) { ?>
+			<div id="footer">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-zap">
+					<defs>
+						<filter id="sharp-drop-shadow" x="-50%" y="-50%" width="200%" height="200%">
+							<feGaussianBlur in="SourceAlpha" stdDeviation="1" />
+							<feOffset dx="0" dy="0" result="offsetblur" />
+							<feFlood flood-color="#fedd48" />
+							<feComposite in2="offsetblur" operator="in" />
+							<feMerge>
+								<feMergeNode />
+								<feMergeNode in="SourceGraphic" />
+							</feMerge>
+						</filter>
+					</defs>
+					<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+				</svg>
+				Powered by <a href="https://github.com/JMcrafter26/tiny-issue-tracker" alt="Tiny Issue Tracker" target="_blank">Tiny Issue Tracker</a>
+			</div>
+		<?php } ?>
+		<script>
+			function loaderIcon() {
+				return '<svg class="loaderIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-loader"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>';
+			}
+
+			document.getElementById('loginBtn').addEventListener('click', function() {
+				showLoader();
+			});
+
+
+			function showLoader() {
+				// prevent form from submitting
+				let form = document.getElementById('loginForm');
+
+
+				var loader = document.createElement('div');
+				loader.style.position = 'absolute';
+				loader.style.top = '0';
+				loader.style.left = '0';
+				loader.style.width = '100%';
+				loader.style.borderRadius = '20px';
+				loader.style.height = '100%';
+				loader.style.backgroundColor = 'rgba(0,0,0,0.2)';
+				loader.style.zIndex = '1000';
+				loader.style.display = 'flex';
+				loader.style.justifyContent = 'center';
+				loader.style.alignItems = 'center';
+				loader.innerHTML = loaderIcon();
+
+				form.appendChild(loader);
+			}
+		</script>
+	</body>
+
+	</html>
 	<?php
 	die();
 }
@@ -973,7 +975,7 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 
 
 	// log action
-	if(count($diff) > 0) {
+	if (count($diff) > 0) {
 		logAction('Settings saved', 1, 'Settings saved by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') with changes: ' . $formattedDiff);
 	}
 	// logAction('Settings saved', 1, 'Settings saved by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
@@ -1119,7 +1121,8 @@ function isMod()
 	return $users[0]['role'] >= 3;
 }
 
-function canEdit() {
+function canEdit()
+{
 	global $config;
 	return $config['allow_user_edits'];
 }
@@ -2490,84 +2493,84 @@ function insertJquery()
 		</div>
 
 		<?php if (($mode != 'admin') && (!isset($issue['id']) || $issue['id'] == '' || (canEdit() || (isMod() == true || (isset($issue['user']) && $issue['user'] == $_SESSION['t1t']['username']))))) { ?>
-		<dialog id="create" style="max-width: 90%;">
-			<form method="POST" style="position: relative;" onsubmit="
+			<dialog id="create" style="max-width: 90%;">
+				<form method="POST" style="position: relative;" onsubmit="
 				showLoader(this);
 			">
-				<input type="hidden" name="id" value="<?php
-														// echo (isset($issue) ? $issue['id'] : '');
-														if (isset($issue['id'])) {
-															echo $issue['id'];
-														} else {
-															echo '';
-														}
+					<input type="hidden" name="id" value="<?php
+															// echo (isset($issue) ? $issue['id'] : '');
+															if (isset($issue['id'])) {
+																echo $issue['id'];
+															} else {
+																echo '';
+															}
 
-														?>" />
-				<?php if ($mode == "admin") { ?>
-					<label>Username</label><input type="text" style="max-width: 85vw;" size="50" name="username" id="user" value="<?php echo htmlentities((isset($issue['user']) ? $issue['user'] : '')); ?>" />
-					<label>Email</label><input type="text" style="max-width: 85vw;" size="50" name="email" id="email" value="<?php echo htmlentities((isset($issue['email']) ? $issue['email'] : '')); ?>" />
+															?>" />
+					<?php if ($mode == "admin") { ?>
+						<label>Username</label><input type="text" style="max-width: 85vw;" size="50" name="username" id="user" value="<?php echo htmlentities((isset($issue['user']) ? $issue['user'] : '')); ?>" />
+						<label>Email</label><input type="text" style="max-width: 85vw;" size="50" name="email" id="email" value="<?php echo htmlentities((isset($issue['email']) ? $issue['email'] : '')); ?>" />
 
 
-					Role
-					<select name="status" style="width: 100%;">
-						<option value="2">User</option>
-						<option value="3">Moderator</option>
-						<option value="4">Admin</option>
-						<option value="0">Banned</option>
-					</select>
-				<?php } else { ?>
-					<label>Title</label><input type="text" style="max-width: 85vw;" size="50" name="title" id="title" value="<?php echo htmlentities((isset($issue['title']) ? $issue['title'] : '')); ?>" required />
-					<label>Description</label><textarea style="max-width: 90vw;" name="description" rows="5" cols="50"><?php echo htmlentities((isset($issue['description']) ? $issue['description'] : '')); ?></textarea>
-
-					<?php if (!isset($_GET['id']) || $_GET['id'] == '') { ?>
-						Priority
-						<select name="priority" style="width: 100%;">
-							<option value="1">High</option>
-							<option selected value="2">Medium</option>
-							<option value="3">Low</option>
+						Role
+						<select name="status" style="width: 100%;">
+							<option value="2">User</option>
+							<option value="3">Moderator</option>
+							<option value="4">Admin</option>
+							<option value="0">Banned</option>
 						</select>
-					<?php } ?>
+					<?php } else { ?>
+						<label>Title</label><input type="text" style="max-width: 85vw;" size="50" name="title" id="title" value="<?php echo htmlentities((isset($issue['title']) ? $issue['title'] : '')); ?>" required />
+						<label>Description</label><textarea style="max-width: 90vw;" name="description" rows="5" cols="50"><?php echo htmlentities((isset($issue['description']) ? $issue['description'] : '')); ?></textarea>
 
-					<a class="right no-text-decoration" style="margin-right: 10px;" target="_blank" title="Markdown Cheatsheet" href="https://gist.github.com/JMcrafter26/b6428ddeb6cd40e3fc99ff6df74ff707#file-edited-markdown-cheat-sheet-md">
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-help-circle">
-							<circle cx="12" cy="12" r="10"></circle>
-							<line x1="12" y1="16" x2="12" y2="12"></line>
-							<line x1="12" y1="8" x2="12" y2="8"></line>
-						</svg>
-						<span style="color: var(--text-main);">Markdown Supported</span>
-					</a>
+						<?php if (!isset($_GET['id']) || $_GET['id'] == '') { ?>
+							Priority
+							<select name="priority" style="width: 100%;">
+								<option value="1">High</option>
+								<option selected value="2">Medium</option>
+								<option value="3">Low</option>
+							</select>
+						<?php } ?>
+
+						<a class="right no-text-decoration" style="margin-right: 10px;" target="_blank" title="Markdown Cheatsheet" href="https://gist.github.com/JMcrafter26/b6428ddeb6cd40e3fc99ff6df74ff707#file-edited-markdown-cheat-sheet-md">
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-help-circle">
+								<circle cx="12" cy="12" r="10"></circle>
+								<line x1="12" y1="16" x2="12" y2="12"></line>
+								<line x1="12" y1="8" x2="12" y2="8"></line>
+							</svg>
+							<span style="color: var(--text-main);">Markdown Supported</span>
+						</a>
+						<br>
+
+					<?php } ?>
 					<br>
 
-				<?php } ?>
-				<br>
+					<?php
+					if (isset($issue['id']) || $mode == "admin") {
+						// check if user is admin
+						if (isAdmin() || $_SESSION['t1t']['username'] === $issue['user'] || $mode == "admin") {
+					?>
 
-				<?php
-				if (isset($issue['id']) || $mode == "admin") {
-					// check if user is admin
-					if (isAdmin() || $_SESSION['t1t']['username'] === $issue['user'] || $mode == "admin") {
-				?>
+							<script>
+								var elementId123 = '<?php echo $mode == "admin" ? "confirmDelete" : "confirmDeleteButton"; ?>';
+							</script>
 
-						<script>
-							var elementId123 = '<?php echo $mode == "admin" ? "confirmDelete" : "confirmDeleteButton"; ?>';
-						</script>
-
-						<button onclick="document.getElementById(elementId123).showModal();" style="background-color: #f85149;">Delete</button>
-				<?php
+							<button onclick="document.getElementById(elementId123).showModal();" style="background-color: #f85149;">Delete</button>
+					<?php
+						}
 					}
-				}
-				?>
-				<input type="hidden" name="<?php if ($mode == "admin") {
-												echo "edituser";
-											} else {
-												echo "createissue";
-											} ?>" value="<?php echo (empty($issue['id']) ? "Create" : "Edit"); ?>" />
-				<label></label><button type="submit" class="right" id="submitFormBtn"><?php echo (empty($issue['id']) ? "Create" : "Save"); ?></button>
+					?>
+					<input type="hidden" name="<?php if ($mode == "admin") {
+													echo "edituser";
+												} else {
+													echo "createissue";
+												} ?>" value="<?php echo (empty($issue['id']) ? "Create" : "Edit"); ?>" />
+					<label></label><button type="submit" class="right" id="submitFormBtn"><?php echo (empty($issue['id']) ? "Create" : "Save"); ?></button>
 
 
-				<button onclick="document.getElementById('create').close();" style="float: right;" type="button">Cancel</button>
+					<button onclick="document.getElementById('create').close();" style="float: right;" type="button">Cancel</button>
 
-			</form>
-		</dialog>
+				</form>
+			</dialog>
 		<?php } ?>
 
 		<?php if ($mode == "list") : ?>
@@ -2583,8 +2586,8 @@ function insertJquery()
 					.searchContainer {
 						display: flex;
 						justify-content: center;
-						margin: 10px 0; 
 						width: 101%;
+						margin-bottom: 0;
 					}
 
 					.search {
@@ -2605,22 +2608,41 @@ function insertJquery()
 						margin-left: 0px;
 						border-radius: 0 6px 6px 0;
 					}
-
-
 				</style>
 
-				<?php if($config['search'] == true){ ?>
-				<div class="searchContainer">
-					<div class="search">
-						<input type="text" id="searchInput" placeholder="Search..." />
-						<button id="searchButton">
-							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-search">
-								<circle cx="11" cy="11" r="8"></circle>
-								<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-							</svg>
-						</button>
+				<?php if ($config['search'] == true) { ?>
+					<div>
+						<div class="searchContainer">
+							<div class="search">
+								<input type="text" id="searchInput" placeholder="Search..." />
+								<button id="searchButton">
+									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-search">
+										<circle cx="11" cy="11" r="8"></circle>
+										<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+									</svg>
+								</button>
+							</div>
+						</div>
+						<a class="right" style="margin-top: 0; margin-right: 10px; font-size: 0.8em; text-decoration: none; cursor: pointer;" onclick="document.getElementById('advancedSearchContainer').classList.toggle('hide');">Advanced Search</a>
+						<div class="advancedSearchContainer hide" id="advancedSearchContainer">
+							<label for="searchDate">Date</label>
+							<input type="date" id="searchDate" />
+							<label for="searchPriority">Priority</label>
+							<select id="searchPriority">
+								<option value="0">All</option>
+								<option value="1">High</option>
+								<option value="2">Medium</option>
+								<option value="3">Low</option>
+							</select>
+							<label for="searchStatus">Status</label>
+							<select id="searchStatus">
+								<option value="0">All</option>
+								<option value="1">Closed</option>
+								<option value="2">Active</option>
+							</select>
+						</div>
 					</div>
-				</div>
+					<br>
 				<?php } ?>
 
 				<div class="issueList">
@@ -2630,7 +2652,7 @@ function insertJquery()
 
 					?>
 
-						<div class="issueItemParent" style="text-decoration: none; cursor: pointer;" data-longclick="true" data-issueId="<?php echo $issue['id']; ?>"  data-allowdelete="<?php echo (canEdit() || isMod() || $_SESSION['t1t']['username'] === $issue['user']); ?>" onmousedown="if(event.button == 1) {window.open('<?php echo $_SERVER['PHP_SELF']; ?>?id=<?php echo $issue['id']; ?>'); return false;}" onclick="if (window.getSelection().toString() == '') { 
+						<div class="issueItemParent" style="text-decoration: none; cursor: pointer;" data-longclick="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo (canEdit() || isMod() || $_SESSION['t1t']['username'] === $issue['user']); ?>" onmousedown="if(event.button == 1) {window.open('<?php echo $_SERVER['PHP_SELF']; ?>?id=<?php echo $issue['id']; ?>'); return false;}" onclick="if (window.getSelection().toString() == '') { 
 							window.ajaxify('<?php echo $_SERVER['PHP_SELF']; ?>?id=<?php echo $issue['id']; ?>');
 						}">
 							<div class="issueItem" data-ctx="true" data-issueId="<?php echo $issue['id']; ?>" data-allowdelete="<?php echo (canEdit() || isMod() || $_SESSION['t1t']['username'] === $issue['user']); ?>">
@@ -3020,15 +3042,15 @@ function insertJquery()
 							<div class="itemBody">
 								<div class="issueTitle">
 									<span>
-										<span style="user-select: all;"><?php echo $user['username']; ?></span><?php 
-										if ($user['email']) {
-										?>
-										- <span style="opacity: 0.7; user-select: all;"><?php echo $user['email']; ?></span>
+										<span style="user-select: all;"><?php echo $user['username']; ?></span><?php
+																												if ($user['email']) {
+																												?>
+											- <span style="opacity: 0.7; user-select: all;"><?php echo $user['email']; ?></span>
 									</span>
-									<?php } ?>
-									<span class="watchStatus">
+								<?php } ?>
+								<span class="watchStatus">
 
-									</span>
+								</span>
 								</div>
 								<div class="itemDetails">
 									<div class="left">
@@ -3117,7 +3139,7 @@ function insertJquery()
 								// capitalize first letter and every letter after a space
 								$settingName = ucwords($settingName);
 
-								if(!isset($settingInfo[$key])) {
+								if (!isset($settingInfo[$key])) {
 									$settingInfo[$key] = "No information available.";
 								}
 
@@ -3133,13 +3155,15 @@ function insertJquery()
 								}
 
 								// if type is boolean
-							?>
-									<label><?php echo $settingName; ?> <span title="<?php echo $settingInfo[$key]; ?>" style="font-size: 0.8em; opacity: 0.7;" onclick="alert(this.title);">
-									<svg xmlns="http://www.w3.org/2000/svg"
-									style="margin-top: -3px;"
-									viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-help-circle"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+						?>
+								<label><?php echo $settingName; ?> <span title="<?php echo $settingInfo[$key]; ?>" style="font-size: 0.8em; opacity: 0.7;" onclick="alert(this.title);">
+										<svg xmlns="http://www.w3.org/2000/svg" style="margin-top: -3px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-help-circle">
+											<circle cx="12" cy="12" r="10"></circle>
+											<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+											<line x1="12" y1="17" x2="12.01" y2="17"></line>
+										</svg>
 									</span></label>
-							<?php
+								<?php
 								if ($type[$key] == "boolean") { ?>
 									<select style="width: 100%;" name="<?php echo $key; ?>">
 										<option value="1" <?php echo ($value == 1 ? "selected" : ""); ?>>Yes</option>
@@ -3163,16 +3187,16 @@ function insertJquery()
 				</div>
 
 				<dialog id="confirmResetSettings" style="width: 300px; height: 170px;">
-						<form method="POST">
-							<label style="margin-top: 5px;">Are you sure you want to reset all settings?</label>
-							<p style="font-size: 0.8rem; opacity: 0.7;">This will reset all settings to their default values.</p>
-							<br>
-							<div>
-								<button onclick="document.getElementById('confirmResetSettings').close();" class="left">Cancel</button>
-								<a class="right important btn" id="confirmResetSettingsButton" href="?resetsettings&admin-panel" onclick="showLoader(this);">Reset</a>
-							</div>
-						</form>
-					</dialog>
+					<form method="POST">
+						<label style="margin-top: 5px;">Are you sure you want to reset all settings?</label>
+						<p style="font-size: 0.8rem; opacity: 0.7;">This will reset all settings to their default values.</p>
+						<br>
+						<div>
+							<button onclick="document.getElementById('confirmResetSettings').close();" class="left">Cancel</button>
+							<a class="right important btn" id="confirmResetSettingsButton" href="?resetsettings&admin-panel" onclick="showLoader(this);">Reset</a>
+						</div>
+					</form>
+				</dialog>
 
 
 				<br>
@@ -3226,7 +3250,7 @@ function insertJquery()
 				</form>
 
 				<br>
-					<h3>Action Log 
+				<h3>Action Log
 					<a href="?admin-panel&exportlogs" class="right btn" style="padding-left: 10px; padding-right: 10px; font-size: 0.9rem; margin-bottom: 10px;" target="_blank">
 						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-download">
 							<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -3235,7 +3259,7 @@ function insertJquery()
 						</svg>
 						Export
 					</a>
-					</h3>
+				</h3>
 				<div class="issueList">
 					<?php
 					// if isset GET page
@@ -3662,7 +3686,7 @@ function insertJquery()
 
 			const confirmDeleteButton = document.getElementById('confirmDeleteButton');
 			confirmDeleteButton.href = `?deleteissue&id=${issueId}`;
-			if(document.getElementById('submitFormBtn')) {
+			if (document.getElementById('submitFormBtn')) {
 				document.getElementById('submitFormBtn').innerHTML = 'Save';
 			}
 
@@ -3740,7 +3764,7 @@ function insertJquery()
 			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}`;
 			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}`;
 			// change submitFormBtn to edit
-			if(document.getElementById('submitFormBtn')) {
+			if (document.getElementById('submitFormBtn')) {
 				document.getElementById('submitFormBtn').innerHTML = 'Save';
 			}
 
@@ -3884,9 +3908,10 @@ function insertJquery()
 			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}`;
 			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}`;
 			// change submitFormBtn to edit
-			if(document.getElementById('submitFormBtn')) {
+			if (document.getElementById('submitFormBtn')) {
 				document.getElementById('submitFormBtn').innerHTML = 'Save';
-			}		} else {
+			}
+		} else {
 			// loop through all ctx actions
 			ctxActions.forEach(ctxAction => {
 				if (ctxAction.dataset.ctxaction == 'edit') {

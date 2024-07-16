@@ -749,8 +749,6 @@ if (isset($_GET["deleteuser"])) {
 	if (isAdmin() && isset($_GET["userId"])) {
 		$mode = "admin";
 
-
-
 		$now = date("Y-m-d H:i:s");
 
 		// check if user exists (same username / email)
@@ -871,6 +869,21 @@ if (isset($_GET["clearlogs"]) && isAdmin()) {
 	$db->exec("DELETE FROM " . $DB_PREFIX . "logs");
 	logAction('Logs cleared', 3, 'Logs cleared by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 	header("Location: ?admin-panel&message=Logs cleared");
+}
+
+if (isset($_GET["exportlogs"]) && isAdmin()) {
+	$logs = $db->query("SELECT * FROM " . $DB_PREFIX . "logs")->fetchAll();
+	$filename = "logs-" . date("Y-m-d-H-i-s") . ".csv";
+	header('Content-Type: text/csv');
+	header('Content-Disposition: attachment; filename="' . $filename . '"');
+	$output = fopen('php://output', 'w');
+	fputcsv($output, array('id', 'user_id', 'action', 'details', 'priority', 'entrytime'));
+	foreach ($logs as $log) {
+		fputcsv($output, $log);
+	}
+	fclose($output);
+	logAction('Logs exported', 1, 'Logs exported by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
+	exit();
 }
 
 $settingsBlacklist = array(
@@ -2518,6 +2531,55 @@ function insertJquery()
 				?>
 				<h2><?php if (isset($STATUSES[$_GET['status']])) echo $STATUSES[$_GET['status']] . " "; ?>Issues <span style="opacity: 0.8;">(<?php echo count($issues); ?>)</span></h2>
 
+				<style>
+					.searchContainer {
+						display: flex;
+						margin: 10px 0;
+						width: 100%;
+						justify-content: space-between;
+					}
+
+					.search {
+						display: flex;
+						width: 80%;
+						max-width: 500px;
+						overflow: hidden;
+					}
+
+					.search input {
+						width: 100%;
+						padding: 10px;
+						font-size: 1em;
+					}
+
+				</style>
+				<div class="searchContainer">
+					<div class="search">
+						<input type="text" id="searchInput" placeholder="Search..." />
+						<button id="searchButton">
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-search">
+								<circle cx="11" cy="11" r="8"></circle>
+								<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+							</svg>
+						</button>
+					</div>
+					<div class="right" style="display: flex;">
+						<button id="tagsBtn" style="margin-left: 10px;">
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-tag">
+								<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+								<line x1="7" y1="7" x2="7.01" y2="7"></line>
+							</svg>
+						</button>
+
+						<!-- sort by - dropdown -->
+						<select id="sortBy" style="margin-left: 10px;">
+							<option value="0">Sort by</option>
+							<option value="1">Priority</option>
+							<option value="4">Date</option>
+						</select>
+					</div>
+				</div>
+
 				<div class="issueList">
 					<?php
 					foreach ($issues as $issue) {
@@ -3058,7 +3120,16 @@ function insertJquery()
 				</form>
 
 				<br>
-				<h3>Action Log</h3>
+					<h3>Action Log 
+					<a href="?admin-panel&exportlogs" class="right btn" style="padding-left: 10px; padding-right: 10px; font-size: 0.9rem; margin-bottom: 10px;" target="_blank">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-download">
+							<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+							<polyline points="7 10 12 15 17 10"></polyline>
+							<line x1="12" y1="15" x2="12" y2="3"></line>
+						</svg>
+						Export
+					</a>
+					</h3>
 				<div class="issueList">
 					<?php
 					// if isset GET page

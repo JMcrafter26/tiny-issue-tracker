@@ -685,16 +685,53 @@ if (isset($_GET["deletecomment"])) {
 	$cid = pdo_escape_string($_GET['cid']);
 
 	// only comment poster or admin can delete comment
-	if (isMod() || $_SESSION['t1t']['username'] == get_col($cid, "comments", "user"))
+	if (isMod() || $_SESSION['t1t']['username'] == get_col($cid, "comments", "user") || canEdit()) {
 		$db->exec("DELETE FROM " . $DB_PREFIX . "comments WHERE id='$cid'");
-	// log action
-	logAction('Comment deleted', 2, 'Comment with id #c' . $cid . ' deleted by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
-
+		// log action
+		logAction('Comment deleted', 2, 'Comment with id #c' . $cid . ' deleted by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
+	} else {
+		// log action
+		logAction('Trial to delete comment', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to delete a comment with id #c' . $cid . ', but failed');
+	}
 
 	if ($obfuscateId) {
 		$id = obfuscateId($id);
 	}
 	header("Location: {$_SERVER['PHP_SELF']}?id=$id");
+}
+
+// search issues
+if (isset($_GET["search"])) {
+	// $mode = "search";
+	// if (!isset($_GET['query'])) {
+		// $message = "No search query provided";
+	// } else {
+		$query = pdo_escape_string($_GET['query']);
+		if (isset($_POST['searchOptions'])) {
+			$options = json_decode($_POST['searchOptions'], true);
+		} else {
+			$options = array();
+		}
+
+		$searchIssues = searchIssues($query, $options);
+		// if is empty, display error
+		if (count($searchIssues) == 0) {
+			$message = "No results found";
+		} else {
+			$issues = $searchIssues;
+
+			// add comment count
+			foreach ($issues as $i => $issue) {
+				$issues[$i]['comment_count'] = $db->query("SELECT count(*) FROM " . $DB_PREFIX . "comments WHERE issue_id='{$issue['id']}'")->fetchColumn();
+				if ($obfuscateId) {
+					$issues[$i]['id'] = obfuscateId($issue['id']);
+				}
+			}
+			unset($i, $issue, $comments);
+
+			$searchQuery = $query;
+		}
+	// }
 }
 
 // Create / Edit User
@@ -991,7 +1028,7 @@ if (isset($_GET["resetsettings"]) && isAdmin()) {
 
 
 
-if (isset($_GET['message'])) {
+if (isset($_GET['message']) && $_GET['message'] != '') {
 	$message = $_GET['message'];
 }
 
@@ -1099,6 +1136,65 @@ function setDefaults()
 	// die(json_encode($config['show_footer']));
 
 	return $config;
+}
+
+function searchIssues($search, $options)
+{
+	global $db;
+	global $DB_PREFIX;
+	$issues = array();
+	$search = pdo_escape_string($search);
+
+
+	// options example:
+	/* $options = array(
+		"status" => 0,
+		"priority" => 0,
+		"date" => array("from" => "2021-01-01", "to" => "2021-12-31"),
+		"tags" => array("tag1", "tag2"),
+		"limit" => 10
+	); 
+	*/
+
+	// $query = "SELECT * FROM " . $DB_PREFIX . "issues WHERE title LIKE '%$search%' OR description LIKE '%$search%'";
+	$query = '';
+	if (isset($options['status']) && $options['status'] != '' && $options['status'] != -1) {
+		$query .= " AND status = " . $options['status'];
+	}
+	if (isset($options['priority']) && $options['priority'] != '' && $options['priority'] != -1) {
+		$query .= " AND priority = " . $options['priority'];
+	}
+	if (isset($options['date']) && isset($options['date']['from'])) {
+		if ($options['date']['from'] != '') {
+			$query .= " AND entrytime BETWEEN '" . $options['date']['from'] . " 00:00:00'";
+		}
+		if (!isset($options['date']['to']) || $options['date']['to'] == '') {
+			$options['date']['to'] = date("Y-m-d");
+		} else {
+			$options['date']['to'] = $options['date']['to'] . " 23:59:59";
+		}
+		$query .= " AND '" . $options['date']['to'] . "'";
+	}
+	if (isset($options['tags']) && count($options['tags']) > 0) {
+		foreach ($options['tags'] as $tag) {
+			$query .= " AND tags LIKE '%$tag%'";
+		}
+	}
+	if (!isset($options['limit']) || $options['limit'] == '') {
+		$options['limit'] = 10;
+	}
+
+	$query = "SELECT * FROM " . $DB_PREFIX . "issues WHERE title LIKE '%$search%'  $query OR description LIKE '%$search%'  $query";
+
+	$query .= " ORDER BY entrytime DESC LIMIT " . $options['limit'];
+
+	// die($query);
+
+	$issues = $db->query($query)->fetchAll();
+
+	// die(json_encode($issues));
+
+	return $issues;
 }
 
 function isAdmin()
@@ -1357,6 +1453,8 @@ function check_first_time()
 function NisUserLoggedIn()
 {
 
+	// Remember login
+	// Will be implemented in the future
 	return;
 	global $db;
 	// if isset cookie auth
@@ -1564,23 +1662,23 @@ function notify($id, $subject, $body)
 		try {
 			// mail($to, $subject, $body, $headers);   
 
-			/* $ch = curl_init();
+			/* 
+				$ch = curl_init();
+				curl_setopt($ch, CURLOPT_URL,"http://ntfy.sh/");
+				curl_setopt($ch, CURLOPT_POST, 1);
+				curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+				curl_setopt($ch, CURLOPT_HTTPHEADER, [
+					'Title: ' . $subject,
+					'X-Apple-Store-Front: 143444,12'
+				]);
 
-curl_setopt($ch, CURLOPT_URL,"http://ntfy.sh/");
-curl_setopt($ch, CURLOPT_POST, 1);
-curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
-curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    'Title: ' . $subject,
-    'X-Apple-Store-Front: 143444,12'
-]);
+				// Receive server response ...
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
-// Receive server response ...
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+				$server_output = curl_exec($ch);
 
-$server_output = curl_exec($ch);
-
-curl_close($ch);
-*/
+				curl_close($ch);
+				*/
 
 			// standard php mail, hope it passes spam filter :)
 		} catch (Error) {
@@ -2580,6 +2678,13 @@ function insertJquery()
 					$_GET['status'] = 0;
 				}
 				?>
+
+				<?php
+				if (isset($message) && $message != '') {
+					echo "<div class='message'>$message</div>";
+				}
+				?>
+
 				<h2><?php if (isset($STATUSES[$_GET['status']])) echo $STATUSES[$_GET['status']] . " "; ?>Issues <span style="opacity: 0.8;">(<?php echo count($issues); ?>)</span></h2>
 
 				<style>
@@ -2612,10 +2717,13 @@ function insertJquery()
 
 				<?php if ($config['search'] == true) { ?>
 					<div>
+						<form action="?search&query=" method="POST" onsubmit="searchIssues(event);">
 						<div class="searchContainer">
 							<div class="search">
-								<input type="text" id="searchInput" placeholder="Search..." />
-								<button id="searchButton">
+								<input type="text" id="searchInput" placeholder="Search..." name="searchQuery" value="<?php echo (isset($searchQuery) ? $searchQuery : ''); ?>" />
+								<input type="hidden" id="searchOptions" name="searchOptions" value="" />
+
+								<button id="searchButton" type="submit">
 									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-search">
 										<circle cx="11" cy="11" r="8"></circle>
 										<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -2623,27 +2731,79 @@ function insertJquery()
 								</button>
 							</div>
 						</div>
+						</form>
 						<a class="right" style="margin-top: 0; margin-right: 10px; font-size: 0.8em; text-decoration: none; cursor: pointer;" onclick="document.getElementById('advancedSearchContainer').classList.toggle('hide');">Advanced Search</a>
 						<div class="advancedSearchContainer hide" id="advancedSearchContainer">
-							<label for="searchDate">Date</label>
-							<input type="date" id="searchDate" />
+							<div style="display: flex; justify-content: space-between;">
+							<div>
+								<label for="searchDate">Start Date</label>
+								<input type="date" id="searchStartDate" />
+							</div>
+							<div>
+								<label for="searchEndDate">End Date</label>
+								<input type="date" id="searchEndDate" />
+							</div>
+							<div>
 							<label for="searchPriority">Priority</label>
 							<select id="searchPriority">
-								<option value="0">All</option>
+								<option value="-1" selected>All</option>
 								<option value="1">High</option>
 								<option value="2">Medium</option>
 								<option value="3">Low</option>
 							</select>
+							</div>
+							<div>
 							<label for="searchStatus">Status</label>
 							<select id="searchStatus">
-								<option value="0">All</option>
-								<option value="1">Closed</option>
-								<option value="2">Active</option>
+								<option value="-1" selected>All</option>
+								<?php
+								foreach ($STATUSES as $code => $name) {
+									echo "<option value='$code'>$name</option>";
+								}
+								?>
 							</select>
+							</div>
+							</div>
+
 						</div>
 					</div>
 					<br>
 				<?php } ?>
+
+				<script>
+					function searchIssues(e) {
+						e.preventDefault();
+
+						let query = document.getElementById('searchInput').value;
+						e.target.action = '?search&query=' + query;
+						let startDate = document.getElementById('searchStartDate').value;
+						let endDate = document.getElementById('searchEndDate').value;
+						let priority = document.getElementById('searchPriority').value;
+						let status = document.getElementById('searchStatus').value;
+
+							// options example:
+				/* $options = array(
+					"status" => 0,
+					"priority" => 0,
+					"date" => array("from" => "2021-01-01", "to" => "2021-12-31"),
+				); 
+				*/
+						let options = {
+							"status": status,
+							"priority": priority,
+							"date": {
+								"from": startDate,
+								"to": endDate
+							}
+						};
+
+						document.getElementById('searchOptions').value = JSON.stringify(options);				
+
+						// submit the form
+						e.target.submit();
+
+					}
+				</script>
 
 				<div class="issueList">
 					<?php

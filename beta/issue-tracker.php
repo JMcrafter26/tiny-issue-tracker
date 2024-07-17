@@ -2772,6 +2772,10 @@ function insertJquery()
 
 				<script>
 					function searchIssues(e) {
+						let searchOptions = document.getElementById('searchOptions');
+						if (searchOptions.value != '') {
+							return true;
+						}
 						e.preventDefault();
 
 						let query = document.getElementById('searchInput').value;
@@ -2797,11 +2801,9 @@ function insertJquery()
 							}
 						};
 
-						document.getElementById('searchOptions').value = JSON.stringify(options);				
+						searchOptions.value = JSON.stringify(options);				
 
-						// submit the form
-						e.target.submit();
-
+						searchIssues(e);
 					}
 				</script>
 

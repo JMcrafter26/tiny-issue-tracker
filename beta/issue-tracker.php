@@ -696,7 +696,8 @@ if (isset($_GET["deletecomment"])) {
 // search issues
 if (isset($_GET["search"])) {
 	// $mode = "search";
-	if (isset($_GET['query'])) {
+	if (isset($_GET['query']) && $_GET['query'] != '') {
+	if (strlen($_GET['query']) > 2) {
 	
 	$query = pdo_escape_string($_GET['query']);
 	
@@ -714,9 +715,9 @@ if (isset($_GET["search"])) {
 		$options['endDate'] = pdo_escape_string($_GET['endDate']);
 	}
 
-
-
 	$searchIssues = searchIssues($query, $options);
+	$execution_time = $searchIssues['execution_time'];
+	$searchIssues = $searchIssues['issues'];
 	// if is empty, display error
 	if (count($searchIssues) == 0) {
 		$message = "No results found";
@@ -740,7 +741,25 @@ if (isset($_GET["search"])) {
 		unset($i, $issue, $comments);
 
 		$searchQuery = $query;
+		// $execution_time = round($execution_time, 2);
+		// $messageJson = array(
+		// 	"icon" => "success",
+		// 	"title" => "Search Results",
+		// 	"subtitle" => "Got " . count($issues) . " results for search query: " . $query . " in " . $execution_time . " ms",
+		// 	"actions" => ["OK"],
+		// 	"dismiss" => 3200
+		// );
 	}
+} else {
+	$message = "Search query must be at least 3 characters long";
+	$messageJson = array(
+		"icon" => "error",
+		"title" => "Search query too short",
+		"subtitle" => "Search query must be at least 3 characters long",
+		"actions" => ["OK"],
+		"dismiss" => 3200
+	);
+}
 	} else {
 		$message = "No search query provided";
 		$messageJson = array(
@@ -1324,7 +1343,7 @@ function setDefaults()
 	return $config;
 }
 
-function searchIssues($search, $options)
+function legacySearchIssues($search, $options)
 {
 	global $db;
 	global $DB_PREFIX;
@@ -1381,6 +1400,150 @@ function searchIssues($search, $options)
 	// die(json_encode($issues));
 
 	return $issues;
+}
+
+function searchIssues($search, $options)
+{
+	
+	global $db;
+	global $DB_PREFIX;
+	$issues = array();
+	$search = pdo_escape_string($search);
+	$threshold = 0.5;
+
+
+
+	// options example:
+	/* $options = array(
+		"status" => 0,
+		"priority" => 0,
+		"date" => array("from" => "2021-01-01", "to" => "2021-12-31"),
+		"tags" => array("tag1", "tag2"),
+		"limit" => 10
+	); 
+	*/
+
+	// $query = "SELECT * FROM " . $DB_PREFIX . "issues WHERE title LIKE '%$search%' OR description LIKE '%$search%'";
+	$query = '';
+	if (isset($options['status']) && $options['status'] != '' && $options['status'] != 'all') {
+		$query .= " AND status = " . $options['status'];
+	}
+	if (isset($options['priority']) && $options['priority'] != '' && $options['priority'] != 'all') {
+		$query .= " AND priority = " . $options['priority'];
+	}
+	if (isset($options['date']) && isset($options['date']['from'])) {
+		if ($options['date']['from'] != '') {
+			$query .= " AND entrytime BETWEEN '" . $options['date']['from'] . " 00:00:00'";
+		}
+		if (!isset($options['date']['to']) || $options['date']['to'] == '') {
+			$options['date']['to'] = date("Y-m-d");
+		} else {
+			$options['date']['to'] = $options['date']['to'] . " 23:59:59";
+		}
+		$query .= " AND '" . $options['date']['to'] . "'";
+	}
+	if (isset($options['tags']) && count($options['tags']) > 0) {
+		foreach ($options['tags'] as $tag) {
+			$query .= " AND tags LIKE '%$tag%'";
+		}
+	}
+	if (!isset($options['limit']) || $options['limit'] == '') {
+		$options['limit'] = 10;
+	}
+
+	// remove the first AND
+	$query = substr($query, 4);
+	if ($query != '') {
+		$query = " WHERE " . $query;
+	}
+	$query = "SELECT * FROM " . $DB_PREFIX . "issues$query";
+	// die($query);
+
+	$query .= " ORDER BY entrytime DESC LIMIT " . $options['limit'];
+
+	$rawIssues = $db->query($query)->fetchAll();
+
+	// if there are more than 1000 issues, use legacy search for performance reasons
+	if (count($rawIssues) < 1000) {
+		$start_time = microtime(true); // Start the timer
+		$searchResults = fuzzySearch($search, array_column($rawIssues, 'title'));
+
+		// add all issues with match percentage higher than 0.5 to $issues with the match percentage
+		foreach ($searchResults as $result) {
+			if ($result['match_percentage'] > $threshold) {
+				$issues[] = $rawIssues[array_search($result['item'], array_column($rawIssues, 'title'))];
+				$issues[count($issues) - 1]['match_percentage'] = $result['match_percentage'];
+			}
+		}
+
+		// sort by match percentage
+		usort($issues, function ($a, $b) {
+			return $b['match_percentage'] <=> $a['match_percentage'];
+		});
+	} else {
+		$issues = legacySearchIssues($search, $options);
+	}
+	
+    $end_time = microtime(true); // End the timer
+    
+    $execution_time = ($end_time - $start_time) * 1000000; // Convert to microseconds
+
+	return array("issues" => $issues, "execution_time" => $execution_time);
+}
+
+function fuzzySearch($query, $array) {
+	/**
+ * Perform a fuzzy search on an array of strings and return the results with match percentages.
+ * Measure the execution time in microseconds.
+ * Author: JMcrafter26
+ *
+ * @param string $query The search query.
+ * @param array $array The array of strings to search within.
+ * @return array The results with match percentages and execution time.
+ */
+    
+    $results = [];
+    $query = strtolower($query); // Convert query to lowercase
+    $queryLength = strlen($query); // Pre-calculate the length of the query
+    
+    // Define a function to calculate match percentage using Levenshtein distance
+    function getMatchPercentage($query, $item, $queryLength) {
+        $itemLength = strlen($item); // Pre-calculate the length of the item
+        $levDistance = levenshtein($query, $item);
+        $maxLen = max($queryLength, $itemLength);
+        if ($maxLen == 0) {
+            return 1; // both strings are empty
+        }
+        return 1 * (1 - ($levDistance / $maxLen));
+    }
+    
+    // Loop through each item in the array and calculate the match percentage
+    foreach ($array as $item) {
+        $lowerItem = strtolower($item); // Convert item to lowercase
+        
+        // Early exit for exact matches
+        if ($query === $lowerItem) {
+            $results[] = [
+                'item' => $item,
+                'match_percentage' => 1
+            ];
+            continue;
+        }
+        
+        $percentage = getMatchPercentage($query, $lowerItem, $queryLength);
+        $results[] = [
+            'item' => $item,
+            'match_percentage' => $percentage
+        ];
+    }
+    
+    // Sort the results by match percentage in descending order
+    // usort($results, function($a, $b) {
+    //     return $b['match_percentage'] <=> $a['match_percentage'];
+    // });
+    
+    
+    return $results;
 }
 
 function isAdmin()
@@ -3831,7 +3994,7 @@ function insertJquery()
 						<br>
 						<div>
 							<button onclick="document.getElementById('confirmResetSettings').close();" class="left">Cancel</button>
-							<a class="right important btn" id="confirmResetSettingsButton" href="?resetsettings&admin-panel" onclick="showLoader(this);">Reset</a>
+							<a class="right important btn" id="confirmResetSettingsButton" href="?resetsettings" onclick="showLoader(this);">Reset</a>
 						</div>
 					</form>
 				</dialog>
@@ -4840,7 +5003,7 @@ function insertJquery()
 		showNotification();
 
 		// if message parameter in url is set, remove it 
-		if (window.location.search.includes('message') || window.location.search.includes('getupdateinfo')) {
+		// if (window.location.search.includes('message') || window.location.search.includes('getupdateinfo')) {
 			var url = window.location.href;
 
 
@@ -4848,10 +5011,23 @@ function insertJquery()
 			url = url.replace(/&message=.*/g, '');
 			// replace &getupdateinfo
 			url = url.replace(/&getupdateinfo/g, '');
+			// replace savesettings with admin-panel
+			url = url.replace(/savesettings/g, 'admin-panel');
+			url = url.replace(/edituser/g, 'admin-panel');
+			url = url.replace(/deleteuser/g, 'admin-panel');
+			url = url.replace(/banuser/g, 'admin-panel');
+			url = url.replace(/unbanuser/g, 'admin-panel');
+			url = url.replace(/resetsettings/g, 'admin-panel');
+
+			// if url is admin-panel, remove everything after it
+			if (url.includes('admin-panel')) {
+				url = url.replace(/admin-panel.*/g, 'admin-panel');
+			}
+
 			// if there is a & at the end, without anything after it, remove it
 			url = url.replace(/&$/, '');
 			history.replaceState({}, document.title, url);
-		}
+		// }
 
 		if (!window.msgShown) {
 			window.msgShown = !0;

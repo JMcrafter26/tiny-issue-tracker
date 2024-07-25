@@ -63,14 +63,18 @@ function fuzzySearch($query, $array) {
 }
 
 // Example usage
-$query = "kjhglkdhagkjhg";
-$array = ["apple", "Pineapple", "banana", "grape", "aple", "Appl"];
+$query = "ayqpcf";
+$array = json_decode(file_get_contents('data.json'), true);
 $response = fuzzySearch($query, $array);
 
-// Print the results
-foreach ($response['results'] as $result) {
-    echo "Item: " . $result['item'] . " - Match: " . $result['match_percentage'] . "\n";
-}
+// remove results below the threshold of 0.5
+$response['results'] = array_filter($response['results'], function($result) {
+    return $result['match_percentage'] >= 0.5;
+});
 
+echo "Results:\n";
+foreach ($response['results'] as $result) {
+    echo $result['item'] . " - Match Percentage: " . $result['match_percentage'] . "\n";
+}
 echo "Execution Time: " . $response['execution_time_microseconds'] . " microseconds\n";
 ?>

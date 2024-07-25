@@ -90,6 +90,7 @@ if (isset($_POST["login"])) {
 		header("Location: ?");
 	} else {
 		$message = "Invalid username or password";
+
 		logAction('Login failed', 3, getIp() . ' tried to login as ' . $_POST["u"] . ', but failed');
 	}
 }
@@ -409,14 +410,6 @@ if (isset($_GET['admin-panel'])) {
 	if (isAdmin()) {
 		$mode = "admin";
 
-		// get config
-		$update_info = $db->query("SELECT * FROM " . $DB_PREFIX . "config WHERE key='update_info'")->fetchAll();
-		if (count($update_info) > 0) {
-			$updateInfo = json_decode($update_info[0]['value'], true);
-		} else {
-			$updateInfo = array();
-		}
-		unset($update_info);
 	} else {
 		$mode = '';
 	}
@@ -703,36 +696,63 @@ if (isset($_GET["deletecomment"])) {
 // search issues
 if (isset($_GET["search"])) {
 	// $mode = "search";
-	// if (!isset($_GET['query'])) {
-		// $message = "No search query provided";
-	// } else {
-		$query = pdo_escape_string($_GET['query']);
-		if (isset($_POST['searchOptions'])) {
-			$options = json_decode($_POST['searchOptions'], true);
-		} else {
-			$options = array();
-		}
+	if (isset($_GET['query'])) {
+	
+	$query = pdo_escape_string($_GET['query']);
+	
+	$options = array();
+	if (isset($_GET['status'])) {
+		$options['status'] = pdo_escape_string($_GET['status']);
+	}
+	if (isset($_GET['priority'])) {
+		$options['priority'] = pdo_escape_string($_GET['priority']);
+	}
+	if (isset($_GET['startDate'])) {
+		$options['startDate'] = pdo_escape_string($_GET['startDate']);
+	}
+	if (isset($_GET['endDate'])) {
+		$options['endDate'] = pdo_escape_string($_GET['endDate']);
+	}
 
-		$searchIssues = searchIssues($query, $options);
-		// if is empty, display error
-		if (count($searchIssues) == 0) {
-			$message = "No results found";
-		} else {
-			$issues = $searchIssues;
 
-			// add comment count
-			foreach ($issues as $i => $issue) {
-				$issues[$i]['comment_count'] = $db->query("SELECT count(*) FROM " . $DB_PREFIX . "comments WHERE issue_id='{$issue['id']}'")->fetchColumn();
-				if ($obfuscateId) {
-					$issues[$i]['id'] = obfuscateId($issue['id']);
-				}
+
+	$searchIssues = searchIssues($query, $options);
+	// if is empty, display error
+	if (count($searchIssues) == 0) {
+		$message = "No results found";
+		$messageJson = array(
+			"icon" => "error",
+			"title" => "No results found",
+			"subtitle" => "No results found for search query: " . $query,
+			"actions" => ["OK"],
+			"dismiss" => 3200
+		);
+	} else {
+		$issues = $searchIssues;
+
+		// add comment count
+		foreach ($issues as $i => $issue) {
+			$issues[$i]['comment_count'] = $db->query("SELECT count(*) FROM " . $DB_PREFIX . "comments WHERE issue_id='{$issue['id']}'")->fetchColumn();
+			if ($obfuscateId) {
+				$issues[$i]['id'] = obfuscateId($issue['id']);
 			}
-			unset($i, $issue, $comments);
-
-			$searchQuery = $query;
 		}
-	// }
+		unset($i, $issue, $comments);
+
+		$searchQuery = $query;
+	}
+	} else {
+		$message = "No search query provided";
+		$messageJson = array(
+			"icon" => "error",
+			"title" => "Error",
+			"subtitle" => "No search query provided",
+			"actions" => ["OK"],
+			"dismiss" => 3200
+		);
+	}
 }
+
 
 // Create / Edit User
 if (isset($_POST["edituser"])) {
@@ -757,6 +777,13 @@ if (isset($_POST["edituser"])) {
 			// if user id is 1, dont do anything
 			if ($users[0]['role'] == 5) {
 				$message = "Cannot edit admin";
+				
+			$messageJson = array(
+				"icon" => "warning",
+				"title" => "Cannot edit admin",
+				"subtitle" => "Cannot edit the admin account",
+				"actions" => ["Understood"]
+			);
 				// log action
 				logAction('Trial to edit admin', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to edit the administator account');
 			} else {
@@ -768,6 +795,14 @@ if (isset($_POST["edituser"])) {
 					logAction('User created', 1, 'User created by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') with username: "' . $username . '", email: "' . $email . '", status: ' . $status);
 
 					$message = "User created";
+					
+					$messageJson = array(
+						"icon" => "success",
+						"title" => "User Created",
+						"subtitle" => "User created successfully",
+						"actions" => ["OK"],
+						"dismiss" => 3200
+					);
 				} else {
 					$query = "UPDATE users SET email='$email', role='$status' WHERE username='$username'"; // edit
 					$db->exec($query);
@@ -775,12 +810,19 @@ if (isset($_POST["edituser"])) {
 					logAction('User edited', 1, 'User with username: "' . $username . '", email: "' . $email . '", status: ' . $status . ' edited by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 
 					$message = "User updated";
+					$messageJson = array(
+						"icon" => "success",
+						"title" => "User Updated",
+						"subtitle" => "User updated successfully",
+						"actions" => ["OK"],
+						"dismiss" => 3200
+					);
 				}
 			}
 
 			// die($message);
 
-			header("Location: ?admin-panel&message=" . $message);
+			// header("Location: ?admin-panel&message=" . $message);
 		}
 	}
 }
@@ -798,6 +840,12 @@ if (isset($_GET["deleteuser"])) {
 		// if user is admin, do not delete
 		if ($users[0]['role'] == 5) {
 			$message = "Cannot delete admin";
+			$messageJson = array(
+				"icon" => "warning",
+				"title" => "Cannot delete admin",
+				"subtitle" => "Cannot delete the admin account",
+				"actions" => ["Understood"]
+			);
 			logAction('Trial to delete admin', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to delete the administator account');
 		} else {
 			if (count($users) > 0) {
@@ -805,13 +853,27 @@ if (isset($_GET["deleteuser"])) {
 				$db->exec($query);
 				logAction('User deleted', 4, 'User with id #u' . $_GET['userId'] . ' was deleted by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 				$message = "User deleted";
+				$messageJson = array(
+					"icon" => "success",
+					"title" => "User Deleted",
+					"subtitle" => "User deleted successfully",
+					"actions" => ["OK"],
+					"dismiss" => 3200
+				);
 			} else {
 				logAction('Trial to delete user', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to delete a user with id #u' . $_GET['userId'] . ', but failed');
 				$message = "User not found";
+				$messageJson = array(
+					"icon" => "error",
+					"title" => "User Not Found",
+					"subtitle" => "User not found",
+					"actions" => ["OK"],
+					"dismiss" => 3200
+				);
 			}
 		}
 
-		header("Location: ?admin-panel&message=" . $message);
+		// header("Location: ?admin-panel&message=" . $message);
 	}
 }
 
@@ -832,19 +894,39 @@ if (isset($_GET["banuser"])) {
 		if ($users[0]['role'] == 5) {
 			logAction('Trial to ban admin', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to ban the administator account');
 			$message = "Cannot ban admin";
+			$messageJson = array(
+				"icon" => "warning",
+				"title" => "Cannot ban admin",
+				"subtitle" => "Cannot ban the admin account",
+				"actions" => ["Understood"]
+			);
 		} else {
 			if (count($users) > 0) {
 				$query = "UPDATE users SET role='0' WHERE id='$id'"; // ban
 				$db->exec($query);
 				logAction('User banned', 2, 'User with id #u' . $id . ' was banned by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 				$message = "User banned";
+				$messageJson = array(
+					"icon" => "success",
+					"title" => "User Banned",
+					"subtitle" => "User banned successfully",
+					"actions" => ["OK"],
+					"dismiss" => 3200
+				);
 			} else {
 				logAction('Trial to ban user', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to ban a user with id #u' . $id . ', but failed');
 				$message = "User not found";
+				$messageJson = array(
+					"icon" => "error",
+					"title" => "User Not Found",
+					"subtitle" => "User not found",
+					"actions" => ["OK"],
+					"dismiss" => 3200
+				);
 			}
 		}
 
-		header("Location: ?admin-panel&message=" . $message);
+		// header("Location: ?admin-panel&message=" . $message);
 	}
 }
 
@@ -864,18 +946,45 @@ if (isset($_GET["unbanuser"])) {
 
 		// check if user exists (same username / email)
 		$users = $db->query("SELECT * FROM users WHERE id='$id'")->fetchAll();
+
+		if ($users[0]['role'] == 5) {
+			logAction('Trial to unban admin', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to unban the administator account');
+			$message = "Cannot unban admin";
+			$messageJson = array(
+				"icon" => "warning",
+				"title" => "Cannot unban admin",
+				"subtitle" => "Cannot unban the admin account",
+				"actions" => ["Understood"]
+			);
+		} else {
+
 		if (count($users) > 0) {
 			$query = "UPDATE users SET role='2' WHERE id='$id'"; // unban
 			$db->exec($query);
 			logAction('User unbanned', 2, 'User with id #u' . $id . ' was unbanned by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 			$message = "User unbanned";
+			$messageJson = array(
+				"icon" => "success",
+				"title" => "User Unbanned",
+				"subtitle" => "User unbanned successfully",
+				"actions" => ["OK"],
+				"dismiss" => 3200
+			);
 		} else {
 			logAction('Trial to unban user', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to unban a user with id #u' . $id . ', but failed');
 			$message = "User not found";
+			$messageJson = array(
+				"icon" => "error",
+				"title" => "User Not Found",
+				"subtitle" => "User not found",
+				"actions" => ["OK"],
+				"dismiss" => 3200
+			);
 		}
 
-		header("Location: ?admin-panel&message=" . $message);
+		// header("Location: ?admin-panel&message=" . $message);
 	}
+}
 }
 
 if (isset($_GET["getupdateinfo"]) && isAdmin()) {
@@ -883,11 +992,25 @@ if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 		$updateInfo = json_decode(file_get_contents("https://raw.githack.com/JMcrafter26/tiny-issue-tracker/main/version.json?rand=" . rand()), true);
 	} catch (Exception $e) {
 		$message += "An error occurred while getting update info";
+		$messageJson = array(
+			"icon" => "error",
+			"title" => "An error occurred while getting update info",
+			"subtitle" => "An error occurred while getting update info",
+			"actions" => ["OK"],
+			"dismiss" => 3200
+		);
 	}
 
 	if (!$updateInfo || $updateInfo == '') {
-		header("Location: ?admin-panel&message=An error occurred while getting update info.");
-		exit;
+		// header("Location: ?admin-panel&message=An error occurred while getting update info.");
+		$messageJson = array(
+			"icon" => "error",
+			"title" => "An error occurred while getting update info",
+			"subtitle" => "An error occurred while getting update info",
+			"actions" => ["OK"],
+			"dismiss" => 3200
+		);
+		// exit;
 	}
 
 	$updateInfo['current_version'] = $VERSION;
@@ -903,14 +1026,43 @@ if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 	}
 
 	if (!isset($_GET['admin-panel'])) {
-		header("Location: ?admin-panel&message=" . $message);
+		// header("Location: ?admin-panel&message=" . $message);
 	}
+
+	// check if the new version is higher than the current version
+	if ($updateInfo['latest'] > $VERSION) {
+		$messageJson = array(
+			"icon" => "up",
+			"title" => "New version available",
+			"subtitle" => "New version available: " . $updateInfo['latest_version'],
+			"actions" => ["OK"]
+		);
+	} else {
+		$messageJson = array(
+			"icon" => "success",
+			"title" => "Checked for updates",
+			"subtitle" => "Successfully checked for updates: No new version available",
+			"actions" => ["OK"],
+			"dismiss" => 3200
+		);
+	}
+	$mode = "admin";
+
 }
 
 if (isset($_GET["clearlogs"]) && isAdmin()) {
 	$db->exec("DELETE FROM " . $DB_PREFIX . "logs");
 	logAction('Logs cleared', 3, 'Logs cleared by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
-	header("Location: ?admin-panel&message=Logs cleared");
+	// header("Location: ?admin-panel&message=Logs cleared");
+	$messageJson = array(
+		"icon" => "success",
+		"title" => "Logs Cleared",
+		"subtitle" => "Logs cleared successfully",
+		"actions" => ["OK"],
+		"dismiss" => 3200
+	);
+	$mode = "admin";
+
 }
 
 if (isset($_GET["exportlogs"]) && isAdmin()) {
@@ -1016,20 +1168,54 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 		logAction('Settings saved', 1, 'Settings saved by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') with changes: ' . $formattedDiff);
 	}
 	// logAction('Settings saved', 1, 'Settings saved by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
-	header("Location: ?admin-panel&message=Settings saved");
+	// header("Location: ?admin-panel&message=Settings saved");
+	$messageJson = array(
+		"icon" => "success",
+		"title" => "Settings Saved",
+		"subtitle" => "Settings saved successfully",
+		"actions" => ["OK"],
+		"dismiss" => 3200
+	);
+	$mode = "admin";
 }
 
 if (isset($_GET["resetsettings"]) && isAdmin()) {
 	$db->exec("DELETE FROM " . $DB_PREFIX . "config WHERE key != 'seed' AND key != 'version'");
 	setDefaults();
 	logAction('Settings reset', 3, 'Settings reset by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
-	header("Location: ?admin-panel&message=Settings reset");
+	// header("Location: ?admin-panel&message=Settings reset");
+	$messageJson = array(
+		"icon" => "success",
+		"title" => "Settings Reset",
+		"subtitle" => "Settings reset successfully",
+		"actions" => ["OK"],
+		"dismiss" => 3200
+	);
+	$mode = "admin";
 }
 
 
 
 if (isset($_GET['message']) && $_GET['message'] != '') {
 	$message = $_GET['message'];
+}
+
+if (isset($_GET['admin-panel']) || $mode == "admin") {
+	// check if user is admin
+	if (isAdmin()) {
+		$mode = "admin";
+
+		// get config
+		$update_info = $db->query("SELECT * FROM " . $DB_PREFIX . "config WHERE key='update_info'")->fetchAll();
+		if (count($update_info) > 0) {
+			$updateInfo = json_decode($update_info[0]['value'], true);
+		} else {
+			$updateInfo = array();
+		}
+		unset($update_info);
+	} else {
+		$mode = '';
+	}
 }
 
 
@@ -1158,10 +1344,10 @@ function searchIssues($search, $options)
 
 	// $query = "SELECT * FROM " . $DB_PREFIX . "issues WHERE title LIKE '%$search%' OR description LIKE '%$search%'";
 	$query = '';
-	if (isset($options['status']) && $options['status'] != '' && $options['status'] != -1) {
+	if (isset($options['status']) && $options['status'] != '' && $options['status'] != 'all') {
 		$query .= " AND status = " . $options['status'];
 	}
-	if (isset($options['priority']) && $options['priority'] != '' && $options['priority'] != -1) {
+	if (isset($options['priority']) && $options['priority'] != '' && $options['priority'] != 'all') {
 		$query .= " AND priority = " . $options['priority'];
 	}
 	if (isset($options['date']) && isset($options['date']['from'])) {
@@ -2321,7 +2507,215 @@ function insertJquery()
 		.tip.active {
 			display: block;
 		}
+
+
 	</style>
+
+	<style>
+        :root {
+            --hue: 223;
+            --transDur: 0.15s;
+        }
+
+
+        .notification {
+            padding-bottom: 0.75em;
+            position: fixed;
+            top: 1.5em;
+            right: 1.5em;
+            width: 18.75em;
+            max-width: calc(100% - 3em);
+            transition: transform 0.15s ease-out;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            user-select: none;
+            color: var(--text-main);
+            font-size: calc(16px + (24 - 16) * (100vw - 320px) / (1280 - 320));
+
+        }
+
+        .notification__box,
+        .notification__content,
+        .notification__btns {
+            display: flex;
+        }
+
+        .notification__box,
+        .notification__content {
+            align-items: center;
+        }
+
+        .notification__box {
+            animation: flyIn 0.3s ease-out;
+            background-color: var(--background-alt);
+            border-radius: 0.75em;
+            box-shadow: 0 0.5em 1em hsla(var(--hue), 10%, 10%, 0.1);
+            height: 4em;
+            transition:
+                background-color var(--transDur),
+                color var(--transDur);
+        }
+
+        .notification--out .notification__box {
+            animation: flyOut 0.3s ease-out forwards;
+        }
+
+        .notification__content {
+            padding: 0.375em 1em;
+            width: 100%;
+            height: 100%;
+        }
+
+        .notification__icon {
+            flex-shrink: 0;
+            margin-right: 0.75em;
+            width: 2em;
+            height: 2em;
+        }
+
+        .notification__icon-svg {
+            width: 100%;
+            height: auto;
+        }
+
+        .notification__text {
+            line-height: 1.333;
+        }
+
+        .notification__text-title {
+            font-size: 0.75em;
+            font-weight: bold;
+        }
+
+        .notification__text-subtitle {
+            font-size: 0.6em;
+            opacity: 0.75;
+        }
+
+        .notification__btns {
+            box-shadow: -1px 0 0 hsla(var(--hue), 10%, 10%, 0.15);
+            flex-direction: column;
+            flex-shrink: 0;
+            min-width: 4em;
+            height: 100%;
+            transition: box-shadow var(--transDur);
+        }
+
+        .notification__btn {
+            background-color: transparent;
+            box-shadow: 0 0 0 hsla(var(--hue), 10%, 10%, 0.5) inset;
+            font-size: 0.6em;
+            line-height: 1;
+            font-weight: 500;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+            transition:
+                background-color var(--transDur),
+                color var(--transDur);
+            -webkit-appearance: none;
+            appearance: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .notification__btn-text {
+            display: inline-block;
+            pointer-events: none;
+        }
+
+        .notification__btn:first-of-type {
+            border-radius: 0 0.75rem 0 0;
+        }
+
+        .notification__btn:last-of-type {
+            border-radius: 0 0 0.75rem 0;
+        }
+
+        .notification__btn:only-child {
+            border-radius: 0 0.75rem 0.75rem 0;
+        }
+
+        .notification__btn+.notification__btn {
+            box-shadow: 0 -1px 0 hsla(var(--hue), 10%, 10%, 0.15);
+            font-weight: 400;
+        }
+
+        .notification__btn:active,
+        .notification__btn:focus {
+            background-color: hsl(var(--hue), 10%, 95%);
+        }
+
+        .notification__btn:focus {
+            outline: transparent;
+        }
+
+        .notification__btn:hover {
+            background-color: transparent;
+        }
+
+        @supports selector(:focus-visible) {
+            .notification__btn:focus {
+                background-color: transparent;
+            }
+
+            .notification__btn:focus-visible,
+            .notification__btn:active {
+                background-color: hsl(var(--hue), 10%, 95%);
+            }
+        }
+
+        /* Dark theme */
+        @media (prefers-color-scheme: dark) {
+            .notification__box {
+                background-color: hsl(var(--hue), 10%, 30%);
+            }
+
+            .notification__btns {
+                box-shadow: -1px 0 0 hsla(var(--hue), 10%, 90%, 0.15);
+            }
+
+            .notification__btn+.notification__btn {
+                box-shadow: 0 -1px 0 hsla(var(--hue), 10%, 90%, 0.15);
+            }
+
+            .notification__btn:active,
+            .notification__btn:focus {
+                background-color: hsl(var(--hue), 10%, 35%);
+            }
+
+            @supports selector(:focus-visible) {
+                .notification__btn:focus {
+                    background-color: transparent;
+                }
+
+                .notification__btn:focus-visible,
+                .notification__btn:active {
+                    background-color: hsl(var(--hue), 10%, 35%);
+                }
+            }
+        }
+
+        /* Animations */
+        @keyframes flyIn {
+            from {
+                transform: translateX(calc(100% + 1.5em));
+            }
+
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes flyOut {
+            from {
+                transform: translateX(0);
+            }
+
+            to {
+                transform: translateX(calc(100% + 1.5em));
+            }
+        }
+    </style>
 
 	<script>
 		<?php echo insertJquery(); ?>
@@ -2506,6 +2900,42 @@ function insertJquery()
 </head>
 
 <body>
+	<input id="notificationJson" type="hidden" value='<?php if (isset($messageJson)) echo json_encode($messageJson); ?>' />
+<svg display="none">
+        <symbol id="notification_clock" viewBox="0 0 32 32">
+            <circle r="15" cx="16" cy="16" fill="none" stroke="currentColor" stroke-width="2" />
+            <polyline points="16,7 16,16 23,16" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" />
+        </symbol>
+        <symbol id="notification_error" viewBox="0 0 32 32">
+            <circle r="15" cx="16" cy="16" fill="none" stroke="hsl(13,90%,55%)" stroke-width="2" />
+            <line x1="10" y1="10" x2="22" y2="22" stroke="hsl(13,90%,55%)" stroke-width="2" stroke-linecap="round" />
+            <line x1="22" y1="10" x2="10" y2="22" stroke="hsl(13,90%,55%)" stroke-width="2" stroke-linecap="round" />
+        </symbol>
+        <symbol id="notification_message" viewBox="0 0 32 32">
+            <polygon points="1,6 31,6 31,26 1,26" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" />
+            <polyline points="1,6 16,18 31,6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" />
+        </symbol>
+        <symbol id="notification_success" viewBox="0 0 32 32">
+            <circle r="15" cx="16" cy="16" fill="none" stroke="hsl(93,90%,40%)" stroke-width="2" />
+            <polyline points="9,18 13,22 23,12" fill="none" stroke="hsl(93,90%,40%)" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" />
+        </symbol>
+        <symbol id="notification_up" viewBox="0 0 32 32">
+            <circle r="15" cx="16" cy="16" fill="none" stroke="currentColor" stroke-width="2" />
+            <polyline points="11,15 16,10 21,15" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" />
+            <line x1="16" y1="10" x2="16" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </symbol>
+        <symbol id="notification_warning" viewBox="0 0 32 32">
+            <polygon points="16,1 31,31 1,31" fill="none" stroke="hsl(33,90%,55%)" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" />
+            <line x1="16" y1="12" x2="16" y2="20" stroke="hsl(33,90%,55%)" stroke-width="2" stroke-linecap="round" />
+            <line x1="16" y1="25" x2="16" y2="25" stroke="hsl(33,90%,55%)" stroke-width="3" stroke-linecap="round" />
+        </symbol>
+    </svg>
 	<div id='container'>
 		<div id="menu">
 			<?php
@@ -2717,94 +3147,140 @@ function insertJquery()
 
 				<?php if ($config['search'] == true) { ?>
 					<div>
-						<form action="?search&query=" method="POST" onsubmit="searchIssues(event);">
-						<div class="searchContainer">
-							<div class="search">
-								<input type="text" id="searchInput" placeholder="Search..." name="searchQuery" value="<?php echo (isset($searchQuery) ? $searchQuery : ''); ?>" />
-								<input type="hidden" id="searchOptions" name="searchOptions" value="" />
+						<form action="?search" method="GET" id="searchForm">
+							<div class="searchContainer">
+								<div class="search">
+									<input type="text" id="searchInput" placeholder="Search..." name="query" value="<?php echo (isset($searchQuery) ? $searchQuery : ''); ?>" />
+									<input type="hidden" id="searchOptions" name="" value="" />
 
-								<button id="searchButton" type="submit">
-									<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-search">
-										<circle cx="11" cy="11" r="8"></circle>
-										<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-									</svg>
-								</button>
+									<button id="searchButton" type="submit">
+										<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-search">
+											<circle cx="11" cy="11" r="8"></circle>
+											<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+										</svg>
+									</button>
+								</div>
 							</div>
-						</div>
+							<a class="right" style="margin-top: 0; margin-right: 10px; font-size: 0.8em; text-decoration: none; cursor: pointer; user-select: none;" onclick="document.getElementById('advancedSearchContainer').classList.toggle('hide');">Advanced Search</a>
+							<div class="advancedSearchContainer hide" id="advancedSearchContainer">
+								<div style="display: flex; justify-content: space-between;">
+									<div>
+										<label for="searchDate">Start Date</label>
+										<input type="date" id="searchStartDate" name="startDate" />
+									</div>
+									<div>
+										<label for="searchEndDate">End Date</label>
+										<input type="date" id="searchEndDate" name="endDate" />
+									</div>
+									<div>
+										<label for="searchPriority">Priority</label>
+										<select id="searchPriority" name="priority">
+											<option value="all" selected>All</option>
+											<option value="1">High</option>
+											<option value="2">Medium</option>
+											<option value="3">Low</option>
+										</select>
+									</div>
+									<div>
+										<label for="searchStatus">Status</label>
+										<select id="searchStatus" name="status">
+											<option value="all" selected>All</option>
+											<?php
+											foreach ($STATUSES as $code => $name) {
+												#if status is the current status
+												if ($code == $status) {
+													echo "<option value='$code' selected>$name</option>";
+												} else {
+													echo "<option value='$code'>$name</option>";
+												}
+											}
+											?>
+										</select>
+									</div>
+								</div>
+
+							</div>
 						</form>
-						<a class="right" style="margin-top: 0; margin-right: 10px; font-size: 0.8em; text-decoration: none; cursor: pointer;" onclick="document.getElementById('advancedSearchContainer').classList.toggle('hide');">Advanced Search</a>
-						<div class="advancedSearchContainer hide" id="advancedSearchContainer">
-							<div style="display: flex; justify-content: space-between;">
-							<div>
-								<label for="searchDate">Start Date</label>
-								<input type="date" id="searchStartDate" />
-							</div>
-							<div>
-								<label for="searchEndDate">End Date</label>
-								<input type="date" id="searchEndDate" />
-							</div>
-							<div>
-							<label for="searchPriority">Priority</label>
-							<select id="searchPriority">
-								<option value="-1" selected>All</option>
-								<option value="1">High</option>
-								<option value="2">Medium</option>
-								<option value="3">Low</option>
-							</select>
-							</div>
-							<div>
-							<label for="searchStatus">Status</label>
-							<select id="searchStatus">
-								<option value="-1" selected>All</option>
-								<?php
-								foreach ($STATUSES as $code => $name) {
-									echo "<option value='$code'>$name</option>";
-								}
-								?>
-							</select>
-							</div>
-							</div>
 
-						</div>
 					</div>
 					<br>
 				<?php } ?>
 
 				<script>
-					function searchIssues(e) {
-						let searchOptions = document.getElementById('searchOptions');
-						if (searchOptions.value != '') {
-							return true;
+					// searchIssues
+
+					function cleanSearchUrlParams() {
+						// get the url, and remove values that are empty
+						let url = new URL(window.location.href);
+						let searchParams = url.searchParams;
+						console.log(searchParams.toString());
+
+						// if search param does not exist, return
+						if (!searchParams.has('search')) {
+							return;
 						}
-						e.preventDefault();
 
-						let query = document.getElementById('searchInput').value;
-						e.target.action = '?search&query=' + query;
-						let startDate = document.getElementById('searchStartDate').value;
-						let endDate = document.getElementById('searchEndDate').value;
-						let priority = document.getElementById('searchPriority').value;
-						let status = document.getElementById('searchStatus').value;
+						// print the endDate value
+						console.log(searchParams.get('endDate'));
 
-							// options example:
-				/* $options = array(
-					"status" => 0,
-					"priority" => 0,
-					"date" => array("from" => "2021-01-01", "to" => "2021-12-31"),
-				); 
-				*/
-						let options = {
-							"status": status,
-							"priority": priority,
-							"date": {
-								"from": startDate,
-								"to": endDate
+						// remove empty values
+						let keysToDelete = [];
+						searchParams.forEach((value, key) => {
+							console.log(key, value);
+						   
+
+						 if
+
+						 ((value == '' || value == null || value == undefined || value == ' ') && key != 'search') {
+								console.log('deleting ' + key);
+								keysToDelete.push(key);
+							} else if (key == 'priority' && value == 'all') {
+								keysToDelete.push(key);
+							} else if(key == 'endDate' && (value == '' || value == null)){ 
+								keysToDelete.push(key);
+							} else if(key == 'status' && value == '<?php echo $status; ?>'){
+								keysToDelete.push(key);
 							}
-						};
+						});
 
-						searchOptions.value = JSON.stringify(options);				
+						keysToDelete.forEach((key) => {
+							searchParams.delete(key);
+						});
 
-						searchIssues(e);
+						console.log(searchParams.toString());
+
+						// replace in url: ?search=& with ?search&
+						url = url.toString().replace('?search=&', '?search&');
+
+						// update the url
+						window.history.pushState({}, '', url);
+
+						// set the value of the search input, if they are not empty and they exist
+						if (searchParams.get('query') != null) {
+							document.getElementById('searchInput').value = searchParams.get('query');
+						}
+						if (searchParams.get('startDate') != null) {
+							document.getElementById('searchStartDate').value = searchParams.get('startDate');
+						}
+						if (searchParams.get('endDate') != null) {
+							document.getElementById('searchEndDate').value = searchParams.get('endDate');
+						}
+						if (searchParams.get('priority') != null) {
+							document.getElementById('searchPriority').value = searchParams.get('priority');
+						}
+						if (searchParams.get('status') != null) {
+							document.getElementById('searchStatus').value = searchParams.get('status');
+						}
+
 					}
+
+					document.addEventListener("ajaxify:load", function(e) {
+						setTimeout(() => {
+							cleanSearchUrlParams();
+						}, 100);
+					});
+					cleanSearchUrlParams();
+
 				</script>
 
 				<div class="issueList">
@@ -3687,6 +4163,164 @@ function insertJquery()
 	});
 </script>
 <script>
+	document.addEventListener("notificationAction", (e) => {
+			console.log(`Notification ${e.detail.id} action: ${e.detail.action}`);
+	});
+
+	function showNotification() {
+		// if input with id notificationJson is empty, return
+		if (document.getElementById("notificationJson").value == "") {
+			return;
+		}
+
+		// parse the json
+		let notification = JSON.parse(document.getElementById("notificationJson").value);
+		console.log(notification);
+		// if id is not set, generate random id
+		if (!notification.id) {
+			notification.id = Math.random().toString(36).substr(2, 9);
+		}
+
+
+		// create new notification
+		const note = new Notification(notification);
+	}
+
+	class Notification {
+		constructor(args) {
+			this.args = args;
+			this.el = null;
+			this.id = null;
+			this.killTime = 300;
+			this.init(args);
+		}
+		init(args) {
+			console.log(args);
+			const {id, icon, title, subtitle, actions, dismiss} = args;
+			const block = "notification";
+			const parent = document.body;
+			const xmlnsSVG = "http://www.w3.org/2000/svg";
+			const xmlnsUse = "http://www.w3.org/1999/xlink";
+
+			let yTranslate = 0;
+			document.querySelectorAll(`.${block}`).forEach(note => {
+				yTranslate += note.offsetHeight;
+			});
+
+
+			const note = this.newEl("div");
+			note.id = id;
+			note.className = block;
+			note.style.transform = `translateY(${yTranslate}px)`;
+			parent.insertBefore(note, parent.lastElementChild);
+
+			const box = this.newEl("div");
+			box.className = `${block}__box`;
+			note.appendChild(box);
+
+			const content = this.newEl("div");
+			content.className = `${block}__content`;
+			box.appendChild(content);
+
+			const _icon = this.newEl("div");
+			_icon.className = `${block}__icon`;
+			content.appendChild(_icon);
+
+			const iconSVG = this.newEl("svg", xmlnsSVG);
+			iconSVG.setAttribute("class", `${block}__icon-svg`);
+			iconSVG.setAttribute("role", "img");
+			iconSVG.setAttribute("aria-label", icon);
+			iconSVG.setAttribute("width", "32px");
+			iconSVG.setAttribute("height", "32px");
+			_icon.appendChild(iconSVG);
+
+			const iconUse = this.newEl("use", xmlnsSVG);
+			iconUse.setAttributeNS(xmlnsUse, "href", `#notification_${icon}`);
+			iconSVG.appendChild(iconUse);
+
+			const text = this.newEl("div");
+			text.className = `${block}__text`;
+			content.appendChild(text);
+
+			const _title = this.newEl("div");
+			_title.className = `${block}__text-title`;
+			_title.textContent = title;
+			text.appendChild(_title);
+
+			if (subtitle) {
+				const _subtitle = this.newEl("div");
+				_subtitle.className = `${block}__text-subtitle`;
+				_subtitle.textContent = subtitle;
+				text.appendChild(_subtitle);
+			}
+
+			const btns = this.newEl("div");
+			btns.className = `${block}__btns`;
+			box.appendChild(btns);
+
+			actions.forEach(action => {
+				const btn = this.newEl("button");
+				btn.className = `${block}__btn`;
+				btn.type = "button";
+				btn.setAttribute("data-dismiss", id);
+				btn.addEventListener("click", () => {
+					console.log(`Button ${action} clicked`);
+					// add custom event dispatch
+					const event = new CustomEvent("notificationAction", {
+						detail: {
+							id: id,
+							action: action
+						}
+					});
+					document.dispatchEvent(event);
+					// close notification
+					note.classList.add(`${block}--out`);
+					setTimeout(() => {
+						note.remove();
+						this.shiftNotes();
+					}, this.killTime);
+
+				});
+
+				const btnText = this.newEl("span");
+				btnText.className = `${block}__btn-text`;
+				btnText.textContent = action;
+
+				btn.appendChild(btnText);
+				btns.appendChild(btn);
+			});
+
+			this.el = note;
+			this.id = note.id;
+
+			// if dismiss is set, dismiss after x seconds
+			if (dismiss) {
+				setTimeout(() => {
+					note.classList.add(`${block}--out`);
+					setTimeout(() => {
+						note.remove();
+						this.shiftNotes();
+					}, this.killTime);
+				}, dismiss);
+			}
+		}
+		newEl(elName, NSValue) {
+			if (NSValue)
+				return document.createElementNS(NSValue, elName);
+			else
+				return document.createElement(elName);
+		}
+
+		shiftNotes() {
+			const notes = document.querySelectorAll(".notification");
+			notes.forEach((note, i) => {
+				const transY = 100 * i;
+				note.style.transform = `translateY(${transY}%)`;
+			});
+
+		}
+	}
+
 	function deleteModal(e) {
 		const deleteUrl = e.dataset.deleteurl;
 		const confirmDeleteButton = document.getElementById('confirmDeleteButton');
@@ -4203,9 +4837,13 @@ function insertJquery()
 	}
 
 	function pageInit() {
+		showNotification();
+
 		// if message parameter in url is set, remove it 
 		if (window.location.search.includes('message') || window.location.search.includes('getupdateinfo')) {
 			var url = window.location.href;
+
+
 			// replace &message= and everything after it with nothing
 			url = url.replace(/&message=.*/g, '');
 			// replace &getupdateinfo

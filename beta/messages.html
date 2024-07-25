@@ -1,0 +1,435 @@
+<!-- https://codepen.io/jkantner/pen/XWzePgp -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <style>
+        :root {
+            --hue: 223;
+            --transDur: 0.15s;
+        }
+
+
+        .notification {
+            padding-bottom: 0.75em;
+            position: fixed;
+            top: 1.5em;
+            right: 1.5em;
+            width: 18.75em;
+            max-width: calc(100% - 3em);
+            transition: transform 0.15s ease-out;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            user-select: none;
+            color: var(--text-main);
+            font-size: calc(16px + (24 - 16) * (100vw - 320px) / (1280 - 320));
+
+        }
+
+        .notification__box,
+        .notification__content,
+        .notification__btns {
+            display: flex;
+        }
+
+        .notification__box,
+        .notification__content {
+            align-items: center;
+        }
+
+        .notification__box {
+            animation: flyIn 0.3s ease-out;
+            background-color: var(--background-alt);
+            border-radius: 0.75em;
+            box-shadow: 0 0.5em 1em hsla(var(--hue), 10%, 10%, 0.1);
+            height: 4em;
+            transition:
+                background-color var(--transDur),
+                color var(--transDur);
+        }
+
+        .notification--out .notification__box {
+            animation: flyOut 0.3s ease-out forwards;
+        }
+
+        .notification__content {
+            padding: 0.375em 1em;
+            width: 100%;
+            height: 100%;
+        }
+
+        .notification__icon {
+            flex-shrink: 0;
+            margin-right: 0.75em;
+            width: 2em;
+            height: 2em;
+        }
+
+        .notification__icon-svg {
+            width: 100%;
+            height: auto;
+        }
+
+        .notification__text {
+            line-height: 1.333;
+        }
+
+        .notification__text-title {
+            font-size: 0.75em;
+            font-weight: bold;
+        }
+
+        .notification__text-subtitle {
+            font-size: 0.6em;
+            opacity: 0.75;
+        }
+
+        .notification__btns {
+            box-shadow: -1px 0 0 hsla(var(--hue), 10%, 10%, 0.15);
+            flex-direction: column;
+            flex-shrink: 0;
+            min-width: 4em;
+            height: 100%;
+            transition: box-shadow var(--transDur);
+        }
+
+        .notification__btn {
+            background-color: transparent;
+            box-shadow: 0 0 0 hsla(var(--hue), 10%, 10%, 0.5) inset;
+            font-size: 0.6em;
+            line-height: 1;
+            font-weight: 500;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+            transition:
+                background-color var(--transDur),
+                color var(--transDur);
+            -webkit-appearance: none;
+            appearance: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .notification__btn-text {
+            display: inline-block;
+            pointer-events: none;
+        }
+
+        .notification__btn:first-of-type {
+            border-radius: 0 0.75rem 0 0;
+        }
+
+        .notification__btn:last-of-type {
+            border-radius: 0 0 0.75rem 0;
+        }
+
+        .notification__btn:only-child {
+            border-radius: 0 0.75rem 0.75rem 0;
+        }
+
+        .notification__btn+.notification__btn {
+            box-shadow: 0 -1px 0 hsla(var(--hue), 10%, 10%, 0.15);
+            font-weight: 400;
+        }
+
+        .notification__btn:active,
+        .notification__btn:focus {
+            background-color: hsl(var(--hue), 10%, 95%);
+        }
+
+        .notification__btn:focus {
+            outline: transparent;
+        }
+
+        .notification__btn:hover {
+            background-color: transparent;
+        }
+
+        @supports selector(:focus-visible) {
+            .notification__btn:focus {
+                background-color: transparent;
+            }
+
+            .notification__btn:focus-visible,
+            .notification__btn:active {
+                background-color: hsl(var(--hue), 10%, 95%);
+            }
+        }
+
+        /* Dark theme */
+        @media (prefers-color-scheme: dark) {
+            .notification__box {
+                background-color: hsl(var(--hue), 10%, 30%);
+            }
+
+            .notification__btns {
+                box-shadow: -1px 0 0 hsla(var(--hue), 10%, 90%, 0.15);
+            }
+
+            .notification__btn+.notification__btn {
+                box-shadow: 0 -1px 0 hsla(var(--hue), 10%, 90%, 0.15);
+            }
+
+            .notification__btn:active,
+            .notification__btn:focus {
+                background-color: hsl(var(--hue), 10%, 35%);
+            }
+
+            @supports selector(:focus-visible) {
+                .notification__btn:focus {
+                    background-color: transparent;
+                }
+
+                .notification__btn:focus-visible,
+                .notification__btn:active {
+                    background-color: hsl(var(--hue), 10%, 35%);
+                }
+            }
+        }
+
+        /* Animations */
+        @keyframes flyIn {
+            from {
+                transform: translateX(calc(100% + 1.5em));
+            }
+
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes flyOut {
+            from {
+                transform: translateX(0);
+            }
+
+            to {
+                transform: translateX(calc(100% + 1.5em));
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <svg display="none">
+        <symbol id="notification_clock" viewBox="0 0 32 32">
+            <circle r="15" cx="16" cy="16" fill="none" stroke="currentColor" stroke-width="2" />
+            <polyline points="16,7 16,16 23,16" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" />
+        </symbol>
+        <symbol id="notification_error" viewBox="0 0 32 32">
+            <circle r="15" cx="16" cy="16" fill="none" stroke="hsl(13,90%,55%)" stroke-width="2" />
+            <line x1="10" y1="10" x2="22" y2="22" stroke="hsl(13,90%,55%)" stroke-width="2" stroke-linecap="round" />
+            <line x1="22" y1="10" x2="10" y2="22" stroke="hsl(13,90%,55%)" stroke-width="2" stroke-linecap="round" />
+        </symbol>
+        <symbol id="notification_message" viewBox="0 0 32 32">
+            <polygon points="1,6 31,6 31,26 1,26" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" />
+            <polyline points="1,6 16,18 31,6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round" />
+        </symbol>
+        <symbol id="notification_success" viewBox="0 0 32 32">
+            <circle r="15" cx="16" cy="16" fill="none" stroke="hsl(93,90%,40%)" stroke-width="2" />
+            <polyline points="9,18 13,22 23,12" fill="none" stroke="hsl(93,90%,40%)" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" />
+        </symbol>
+        <symbol id="notification_up" viewBox="0 0 32 32">
+            <circle r="15" cx="16" cy="16" fill="none" stroke="currentColor" stroke-width="2" />
+            <polyline points="11,15 16,10 21,15" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" />
+            <line x1="16" y1="10" x2="16" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </symbol>
+        <symbol id="notification_warning" viewBox="0 0 32 32">
+            <polygon points="16,1 31,31 1,31" fill="none" stroke="hsl(33,90%,55%)" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round" />
+            <line x1="16" y1="12" x2="16" y2="20" stroke="hsl(33,90%,55%)" stroke-width="2" stroke-linecap="round" />
+            <line x1="16" y1="25" x2="16" y2="25" stroke="hsl(33,90%,55%)" stroke-width="3" stroke-linecap="round" />
+        </symbol>
+    </svg>
+
+    <script>
+        window.addEventListener("DOMContentLoaded", () => {
+            const notification = new Notification({
+                id: "notification_1",
+                icon: "error",
+                title: "Error",
+                subtitle: "An error occurred while processing your request.",
+                actions: ["OK"]
+            });
+
+            const notification2 = new Notification({
+                id: "notification_2",
+                icon: "success",
+                title: "Success",
+                subtitle: "Your request has been processed successfully.",
+                actions: ["OK", "Cancel"]
+            });
+
+            const notification3 = new Notification({
+                id: "notification_3",
+                icon: "warning",
+                title: "Warning",
+                subtitle: "Your request has been processed successfully.",
+                actions: ["OK", "Cancel"]
+            });
+
+            const notification4 = new Notification({
+                id: "notification_4",
+                icon: "clock",
+                title: "Reminder",
+                subtitle: "You have an appointment at 3:30 PM.",
+                actions: ["OK", "Snooze"]
+            });
+
+            const notification5 = new Notification({
+                id: "notification_5",
+                icon: "message",
+                title: "Message",
+                subtitle: "You have a new message from John Doe.",
+                actions: ["Reply", "Delete"]
+            });
+
+            const notification6 = new Notification({
+                id: "notification_6",
+                icon: "up",
+                title: "Update",
+                subtitle: "A new version of the app is available.",
+                actions: ["Update", "Later"]
+            });
+
+
+            document.addEventListener("notificationAction", (e) => {
+                console.log(`Notification ${e.detail.id} action: ${e.detail.action}`);
+            });
+        });
+
+        class Notification {
+            constructor(args) {
+                this.args = args;
+                this.el = null;
+                this.id = null;
+                this.killTime = 300;
+                this.init(args);
+            }
+            init(args) {
+                const {id, icon, title, subtitle, actions} = args;
+                const block = "notification";
+                const parent = document.body;
+                const xmlnsSVG = "http://www.w3.org/2000/svg";
+                const xmlnsUse = "http://www.w3.org/1999/xlink";
+
+                let yTranslate = 0;
+                document.querySelectorAll(`.${block}`).forEach(note => {
+                    yTranslate += note.offsetHeight;
+                });
+
+
+                const note = this.newEl("div");
+                note.id = id;
+                note.className = block;
+                note.style.transform = `translateY(${yTranslate}px)`;
+                parent.insertBefore(note, parent.lastElementChild);
+
+                const box = this.newEl("div");
+                box.className = `${block}__box`;
+                note.appendChild(box);
+
+                const content = this.newEl("div");
+                content.className = `${block}__content`;
+                box.appendChild(content);
+
+                const _icon = this.newEl("div");
+                _icon.className = `${block}__icon`;
+                content.appendChild(_icon);
+
+                const iconSVG = this.newEl("svg", xmlnsSVG);
+                iconSVG.setAttribute("class", `${block}__icon-svg`);
+                iconSVG.setAttribute("role", "img");
+                iconSVG.setAttribute("aria-label", icon);
+                iconSVG.setAttribute("width", "32px");
+                iconSVG.setAttribute("height", "32px");
+                _icon.appendChild(iconSVG);
+
+                const iconUse = this.newEl("use", xmlnsSVG);
+                iconUse.setAttributeNS(xmlnsUse, "href", `#notification_${icon}`);
+                iconSVG.appendChild(iconUse);
+
+                const text = this.newEl("div");
+                text.className = `${block}__text`;
+                content.appendChild(text);
+
+                const _title = this.newEl("div");
+                _title.className = `${block}__text-title`;
+                _title.textContent = title;
+                text.appendChild(_title);
+
+                if (subtitle) {
+                    const _subtitle = this.newEl("div");
+                    _subtitle.className = `${block}__text-subtitle`;
+                    _subtitle.textContent = subtitle;
+                    text.appendChild(_subtitle);
+                }
+
+                const btns = this.newEl("div");
+                btns.className = `${block}__btns`;
+                box.appendChild(btns);
+
+                actions.forEach(action => {
+                    const btn = this.newEl("button");
+                    btn.className = `${block}__btn`;
+                    btn.type = "button";
+                    btn.setAttribute("data-dismiss", id);
+                    btn.addEventListener("click", () => {
+                        console.log(`Button ${action} clicked`);
+                        // add custom event dispatch
+                        const event = new CustomEvent("notificationAction", {
+                            detail: {
+                                id: id,
+                                action: action
+                            }
+                        });
+                        document.dispatchEvent(event);
+                        // close notification
+                        note.classList.add(`${block}--out`);
+                        setTimeout(() => {
+                            note.remove();
+                            this.shiftNotes();
+                        }, this.killTime);
+
+                    });
+
+                    const btnText = this.newEl("span");
+                    btnText.className = `${block}__btn-text`;
+                    btnText.textContent = action;
+
+                    btn.appendChild(btnText);
+                    btns.appendChild(btn);
+                });
+
+                this.el = note;
+                this.id = note.id;
+            }
+            newEl(elName, NSValue) {
+                if (NSValue)
+                    return document.createElementNS(NSValue, elName);
+                else
+                    return document.createElement(elName);
+            }
+
+            shiftNotes() {
+                const notes = document.querySelectorAll(".notification");
+                notes.forEach((note, i) => {
+                    const transY = 100 * i;
+                    note.style.transform = `translateY(${transY}%)`;
+                });
+
+            }
+        }
+
+    </script>
+</body>
+
+</html>

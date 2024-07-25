@@ -1,14 +1,5 @@
 <?php
 
-/**
- * Perform a fuzzy search on an array of strings and return the results with match percentages.
- * Measure the execution time in microseconds.
- * Author: JMcrafter26
- *
- * @param string $query The search query.
- * @param array $array The array of strings to search within.
- * @return array The results with match percentages and execution time.
- */
 function fuzzySearch($query, $array) {
     $start_time = microtime(true); // Start the timer
     
@@ -40,11 +31,35 @@ function fuzzySearch($query, $array) {
             continue;
         }
         
-        $percentage = getMatchPercentage($query, $lowerItem, $queryLength);
-        $results[] = [
-            'item' => $item,
-            'match_percentage' => $percentage
-        ];
+        // Check if the item contains spaces
+        if (strpos($lowerItem, ' ') !== false) {
+            // Split the item into individual words
+            $words = explode(' ', $lowerItem);
+            $totalPercentage = 0;
+            $wordCount = count($words);
+            
+            // Calculate the match percentage for each word and sum them up
+            foreach ($words as $word) {
+                $percentage = getMatchPercentage($query, $word, $queryLength);
+                $totalPercentage += $percentage;
+            }
+            
+            // Calculate the average match percentage for the item
+            $averagePercentage = $totalPercentage / $wordCount;
+            
+            $results[] = [
+                'item' => $item,
+                'match_percentage' => $averagePercentage
+            ];
+        } else {
+            // Calculate the match percentage for the item as usual
+            $percentage = getMatchPercentage($query, $lowerItem, $queryLength);
+            
+            $results[] = [
+                'item' => $item,
+                'match_percentage' => $percentage
+            ];
+        }
     }
     
     // Sort the results by match percentage in descending order

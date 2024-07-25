@@ -1410,8 +1410,10 @@ function searchIssues($search, $options)
 	$issues = array();
 	$search = pdo_escape_string($search);
 	$threshold = 0.5;
+	$start_time = microtime(true); // Start the timer
 
 
+	$issues = legacySearchIssues($search, $options);
 
 	// options example:
 	/* $options = array(
@@ -1422,85 +1424,81 @@ function searchIssues($search, $options)
 		"limit" => 10
 	); 
 	*/
-
-	// $query = "SELECT * FROM " . $DB_PREFIX . "issues WHERE title LIKE '%$search%' OR description LIKE '%$search%'";
-	$query = '';
-	if (isset($options['status']) && $options['status'] != '' && $options['status'] != 'all') {
-		$query .= " AND status = " . $options['status'];
-	}
-	if (isset($options['priority']) && $options['priority'] != '' && $options['priority'] != 'all') {
-		$query .= " AND priority = " . $options['priority'];
-	}
-	if (isset($options['date']) && isset($options['date']['from'])) {
-		if ($options['date']['from'] != '') {
-			$query .= " AND entrytime BETWEEN '" . $options['date']['from'] . " 00:00:00'";
+	if(count($issues) == 0){
+		// $query = "SELECT * FROM " . $DB_PREFIX . "issues WHERE title LIKE '%$search%' OR description LIKE '%$search%'";
+		$query = '';
+		if (isset($options['status']) && $options['status'] != '' && $options['status'] != 'all') {
+			$query .= " AND status = " . $options['status'];
 		}
-		if (!isset($options['date']['to']) || $options['date']['to'] == '') {
-			$options['date']['to'] = date("Y-m-d");
-		} else {
-			$options['date']['to'] = $options['date']['to'] . " 23:59:59";
+		if (isset($options['priority']) && $options['priority'] != '' && $options['priority'] != 'all') {
+			$query .= " AND priority = " . $options['priority'];
 		}
-		$query .= " AND '" . $options['date']['to'] . "'";
-	}
-	if (isset($options['tags']) && count($options['tags']) > 0) {
-		foreach ($options['tags'] as $tag) {
-			$query .= " AND tags LIKE '%$tag%'";
+		if (isset($options['date']) && isset($options['date']['from'])) {
+			if ($options['date']['from'] != '') {
+				$query .= " AND entrytime BETWEEN '" . $options['date']['from'] . " 00:00:00'";
+			}
+			if (!isset($options['date']['to']) || $options['date']['to'] == '') {
+				$options['date']['to'] = date("Y-m-d");
+			} else {
+				$options['date']['to'] = $options['date']['to'] . " 23:59:59";
+			}
+			$query .= " AND '" . $options['date']['to'] . "'";
 		}
-	}
-	if (!isset($options['limit']) || $options['limit'] == '') {
-		$options['limit'] = 10;
-	}
-
-	// remove the first AND
-	$query = substr($query, 4);
-	if ($query != '') {
-		$query = " WHERE " . $query;
-	}
-	$query = "SELECT * FROM " . $DB_PREFIX . "issues$query";
-	// die($query);
-
-	$query .= " ORDER BY entrytime DESC LIMIT " . $options['limit'];
-
-	$rawIssues = $db->query($query)->fetchAll();
-
-	// if there are more than 1000 issues, use legacy search for performance reasons
-	if (count($rawIssues) < 1000) {
-		$start_time = microtime(true); // Start the timer
-		$searchResults = fuzzySearch($search, array_column($rawIssues, 'title'));
-
-		// add all issues with match percentage higher than 0.5 to $issues with the match percentage
-		foreach ($searchResults as $result) {
-			if ($result['match_percentage'] > $threshold) {
-				$issues[] = $rawIssues[array_search($result['item'], array_column($rawIssues, 'title'))];
-				$issues[count($issues) - 1]['match_percentage'] = $result['match_percentage'];
+		if (isset($options['tags']) && count($options['tags']) > 0) {
+			foreach ($options['tags'] as $tag) {
+				$query .= " AND tags LIKE '%$tag%'";
 			}
 		}
+		if (!isset($options['limit']) || $options['limit'] == '') {
+			$options['limit'] = 10;
+		}
 
-		// sort by match percentage
-		usort($issues, function ($a, $b) {
-			return $b['match_percentage'] <=> $a['match_percentage'];
-		});
-	} else {
-		$issues = legacySearchIssues($search, $options);
+		// remove the first AND
+		$query = substr($query, 4);
+		if ($query != '') {
+			$query = " WHERE " . $query;
+		}
+		$query = "SELECT * FROM " . $DB_PREFIX . "issues$query";
+		// die($query);
+
+		$query .= " ORDER BY entrytime DESC LIMIT " . $options['limit'];
+
+		$rawIssues = $db->query($query)->fetchAll();
+
+		// if there are less than 1000 issues, use fuzzy search, else use legacy search
+		if (count($rawIssues) > 1000) {
+			$searchResults = fuzzySearch($search, array_column($rawIssues, 'title'));
+
+			$issues = array();
+
+			// decrease threshold if no results are found
+			while (count($issues) == 0 && $threshold < 0.1) {
+				foreach ($searchResults as $result) {
+					if ($result['match_percentage'] > $threshold) {
+						$issues[] = $rawIssues[array_search($result['item'], array_column($rawIssues, 'title'))];
+						$issues[count($issues) - 1]['match_percentage'] = $result['match_percentage'];
+					}
+				}
+				$threshold -= 0.1;
+			}
+
+			// sort by match percentage
+			usort($issues, function ($a, $b) {
+				return $b['match_percentage'] <=> $a['match_percentage'];
+			});
+		}
 	}
-	
+
     $end_time = microtime(true); // End the timer
     
     $execution_time = ($end_time - $start_time) * 1000000; // Convert to microseconds
+	// die(json_encode(array("issues" => $issues, "execution_time" => $execution_time)));
 
 	return array("issues" => $issues, "execution_time" => $execution_time);
 }
 
 function fuzzySearch($query, $array) {
-	/**
- * Perform a fuzzy search on an array of strings and return the results with match percentages.
- * Measure the execution time in microseconds.
- * Author: JMcrafter26
- *
- * @param string $query The search query.
- * @param array $array The array of strings to search within.
- * @return array The results with match percentages and execution time.
- */
+    $start_time = microtime(true); // Start the timer
     
     $results = [];
     $query = strtolower($query); // Convert query to lowercase
@@ -1530,11 +1528,35 @@ function fuzzySearch($query, $array) {
             continue;
         }
         
-        $percentage = getMatchPercentage($query, $lowerItem, $queryLength);
-        $results[] = [
-            'item' => $item,
-            'match_percentage' => $percentage
-        ];
+        // Check if the item contains spaces
+        if (strpos($lowerItem, ' ') !== false) {
+            // Split the item into individual words
+            $words = explode(' ', $lowerItem);
+            $totalPercentage = 0;
+            $wordCount = count($words);
+            
+            // Calculate the match percentage for each word and sum them up
+            foreach ($words as $word) {
+                $percentage = getMatchPercentage($query, $word, $queryLength);
+                $totalPercentage += $percentage;
+            }
+            
+            // Calculate the average match percentage for the item
+            $averagePercentage = $totalPercentage / $wordCount;
+            
+            $results[] = [
+                'item' => $item,
+                'match_percentage' => $averagePercentage
+            ];
+        } else {
+            // Calculate the match percentage for the item as usual
+            $percentage = getMatchPercentage($query, $lowerItem, $queryLength);
+            
+            $results[] = [
+                'item' => $item,
+                'match_percentage' => $percentage
+            ];
+        }
     }
     
     // Sort the results by match percentage in descending order
@@ -1542,6 +1564,9 @@ function fuzzySearch($query, $array) {
     //     return $b['match_percentage'] <=> $a['match_percentage'];
     // });
     
+    $end_time = microtime(true); // End the timer
+    
+    $execution_time = ($end_time - $start_time) * 1000000; // Convert to microseconds
     
     return $results;
 }

@@ -546,6 +546,14 @@ if (isset($_GET["deleteissue"])) {
 		// log action
 		logAction('Issue deleted', 2, 'Issue with id #i' . $id . ' deleted by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 
+		$messageJson = array(
+			'icon' => 'success',
+			'title' => 'Issue Deleted',
+			'subtitle' => 'Issue deleted successfully',
+			'actions' => ['OK'],
+			'dismiss' => 3200
+		);
+
 		if ($NOTIFY["ISSUE_DELETE"])
 			notify(
 				$id,
@@ -553,7 +561,10 @@ if (isset($_GET["deleteissue"])) {
 				"Issue deleted by {$_SESSION['t1t']['username']}\r\nTitle: $title"
 			);
 	}
+	$_SESSION['messageJson'] = $messageJson;
+
 	header("Location: {$_SERVER['PHP_SELF']}");
+	exit();
 }
 
 // Change Priority
@@ -681,6 +692,13 @@ if (isset($_GET["deletecomment"])) {
 	if (isMod() || $_SESSION['t1t']['username'] == get_col($cid, "comments", "user") || canEdit()) {
 		$db->exec("DELETE FROM " . $DB_PREFIX . "comments WHERE id='$cid'");
 		// log action
+		$messageJson = array(
+			"icon" => "success",
+			"title" => "Comment deleted",
+			"subtitle" => "Comment successfully deleted",
+			"actions" => ["OK"],
+			"dismiss" => 3200
+		);
 		logAction('Comment deleted', 2, 'Comment with id #c' . $cid . ' deleted by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 	} else {
 		// log action
@@ -690,7 +708,11 @@ if (isset($_GET["deletecomment"])) {
 	if ($obfuscateId) {
 		$id = obfuscateId($id);
 	}
+
+	$_SESSION['messageJson'] = $messageJson;
 	header("Location: {$_SERVER['PHP_SELF']}?id=$id");
+	exit();
+
 }
 
 // search issues
@@ -724,7 +746,7 @@ if (isset($_GET["search"])) {
 		$messageJson = array(
 			"icon" => "error",
 			"title" => "No results found",
-			"subtitle" => "No results found for search query: " . $query,
+			"subtitle" => "No results found. Try a different search query or check your filters",
 			"actions" => ["OK"],
 			"dismiss" => 3200
 		);
@@ -841,7 +863,10 @@ if (isset($_POST["edituser"])) {
 
 			// die($message);
 
-			// header("Location: ?admin-panel&message=" . $message);
+			$_SESSION['messageJson'] = $messageJson;
+			header("Location: ?admin-panel&message=" . $message);
+	exit();
+
 		}
 	}
 }
@@ -892,7 +917,11 @@ if (isset($_GET["deleteuser"])) {
 			}
 		}
 
-		// header("Location: ?admin-panel&message=" . $message);
+		$_SESSION['messageJson'] = $messageJson;
+
+		header("Location: ?admin-panel&message=" . $message);
+	exit();
+
 	}
 }
 
@@ -945,7 +974,11 @@ if (isset($_GET["banuser"])) {
 			}
 		}
 
-		// header("Location: ?admin-panel&message=" . $message);
+		$_SESSION['messageJson'] = $messageJson;
+
+		header("Location: ?admin-panel&message=" . $message);
+	exit();
+
 	}
 }
 
@@ -1001,7 +1034,11 @@ if (isset($_GET["unbanuser"])) {
 			);
 		}
 
-		// header("Location: ?admin-panel&message=" . $message);
+		$_SESSION['messageJson'] = $messageJson;
+
+		header("Location: ?admin-panel&message=" . $message);
+	exit();
+
 	}
 }
 }
@@ -1021,7 +1058,6 @@ if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 	}
 
 	if (!$updateInfo || $updateInfo == '') {
-		// header("Location: ?admin-panel&message=An error occurred while getting update info.");
 		$messageJson = array(
 			"icon" => "error",
 			"title" => "An error occurred while getting update info",
@@ -1029,7 +1065,10 @@ if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 			"actions" => ["OK"],
 			"dismiss" => 3200
 		);
-		// exit;
+		$_SESSION['messageJson'] = $messageJson;
+
+		header("Location: ?admin-panel&message=An error occurred while getting update info.");
+		exit;
 	}
 
 	$updateInfo['current_version'] = $VERSION;
@@ -1044,9 +1083,7 @@ if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('update_info', '" . json_encode($updateInfo) . "', '" . date("Y-m-d H:i:s") . "')");
 	}
 
-	if (!isset($_GET['admin-panel'])) {
-		// header("Location: ?admin-panel&message=" . $message);
-	}
+
 
 	// check if the new version is higher than the current version
 	if ($updateInfo['latest'] > $VERSION) {
@@ -1066,13 +1103,18 @@ if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 		);
 	}
 	$mode = "admin";
+	if (!isset($_GET['admin-panel'])) {
+		$_SESSION['messageJson'] = $messageJson;
 
+		header("Location: ?admin-panel&message=" . $message);
+	exit();
+
+	}
 }
 
 if (isset($_GET["clearlogs"]) && isAdmin()) {
 	$db->exec("DELETE FROM " . $DB_PREFIX . "logs");
 	logAction('Logs cleared', 3, 'Logs cleared by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
-	// header("Location: ?admin-panel&message=Logs cleared");
 	$messageJson = array(
 		"icon" => "success",
 		"title" => "Logs Cleared",
@@ -1080,7 +1122,10 @@ if (isset($_GET["clearlogs"]) && isAdmin()) {
 		"actions" => ["OK"],
 		"dismiss" => 3200
 	);
-	$mode = "admin";
+	$_SESSION['messageJson'] = $messageJson;
+
+	header("Location: ?admin-panel&message=Logs cleared");
+	exit();
 
 }
 
@@ -1187,7 +1232,6 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 		logAction('Settings saved', 1, 'Settings saved by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') with changes: ' . $formattedDiff);
 	}
 	// logAction('Settings saved', 1, 'Settings saved by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
-	// header("Location: ?admin-panel&message=Settings saved");
 	$messageJson = array(
 		"icon" => "success",
 		"title" => "Settings Saved",
@@ -1195,14 +1239,18 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 		"actions" => ["OK"],
 		"dismiss" => 3200
 	);
-	$mode = "admin";
+	$_SESSION['messageJson'] = $messageJson;
+
+	header("Location: ?admin-panel&message=Settings saved");
+	exit();
+
+
 }
 
 if (isset($_GET["resetsettings"]) && isAdmin()) {
 	$db->exec("DELETE FROM " . $DB_PREFIX . "config WHERE key != 'seed' AND key != 'version'");
 	setDefaults();
 	logAction('Settings reset', 3, 'Settings reset by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
-	// header("Location: ?admin-panel&message=Settings reset");
 	$messageJson = array(
 		"icon" => "success",
 		"title" => "Settings Reset",
@@ -1210,7 +1258,12 @@ if (isset($_GET["resetsettings"]) && isAdmin()) {
 		"actions" => ["OK"],
 		"dismiss" => 3200
 	);
-	$mode = "admin";
+	$_SESSION['messageJson'] = $messageJson;
+
+	header("Location: ?admin-panel&message=Settings reset");
+	exit();
+
+
 }
 
 
@@ -3088,6 +3141,16 @@ function insertJquery()
 </head>
 
 <body>
+	<?php
+	// if !isset $messageJson, check if $_SESSION['messageJson'] is set
+	if ((!isset($messageJson) || empty($messageJson)
+	) && isset($_SESSION['messageJson'])) {
+		$messageJson = $_SESSION['messageJson'];
+		unset($_SESSION['messageJson']);
+	}
+	// die(json_encode($_SESSION['messageJson']));
+
+	?>
 	<input id="notificationJson" type="hidden" value='<?php if (isset($messageJson)) echo json_encode($messageJson); ?>' />
 <svg display="none">
         <symbol id="notification_clock" viewBox="0 0 32 32">
@@ -4110,8 +4173,23 @@ function insertJquery()
 					foreach ($LOG as $log) {
 						// echo var_dump($log);
 					?>
-						<div class="issueItem">
-							<span class="issueStatus active">
+						<div class="issueItem" style="<?php
+							// background color red if priority is 4 or higher
+							if ($log['priority'] == 5) {
+								echo 'background-color: #f85149;';
+							} ?>">
+							<span class="issueStatus <?php
+							// priority 4 and above is .important
+							// priority 3 is warning
+							// priority 2 is active
+							// priority 1 is closed
+							if ($log['priority'] >= 4) {
+								echo 'important';
+							} else if ($log['priority'] >= 2) {
+								echo 'warning';
+							} else {
+								echo 'active';
+							} ?>">
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-activity">
 									<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
 								</svg>
@@ -5040,8 +5118,9 @@ function insertJquery()
 			url = url.replace(/savesettings/g, 'admin-panel');
 			url = url.replace(/edituser/g, 'admin-panel');
 			url = url.replace(/deleteuser/g, 'admin-panel');
-			url = url.replace(/banuser/g, 'admin-panel');
 			url = url.replace(/unbanuser/g, 'admin-panel');
+
+			url = url.replace(/banuser/g, 'admin-panel');
 			url = url.replace(/resetsettings/g, 'admin-panel');
 
 			// if url is admin-panel, remove everything after it

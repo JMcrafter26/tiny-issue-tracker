@@ -830,7 +830,7 @@ if (isset($_POST["createcomment"])) {
 
 	$issue_id = pdo_escape_string($_POST['issue_id']);
 
-	if(checkToken($_GET['token']) == false) {
+	if(checkToken($_POST['token']) == false) {
 		$messageJson = array(
 			'id' => 'refresh_notification',
 			'icon' => 'error',
@@ -4152,7 +4152,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 									</a>
 									<?php if (isMod() || $_SESSION['t1t']['username'] == $comment['user']) : ?>
 
-										<a class="important no-text-decoration" onclick="deleteModal(this)" data-deleteUrl='<?php echo $_SERVER['PHP_SELF']; ?>?deletecomment&id=<?php echo $issue['id']; ?>&cid=<?php echo $comment['id']; ?>' title="Delete comment">
+										<a class="important no-text-decoration" onclick="deleteModal(this)" data-deleteUrl='<?php echo $_SERVER['PHP_SELF']; ?>?deletecomment&id=<?php echo $issue['id']; ?>&cid=<?php echo $comment['id']; ?>' title="Delete comment" data-addToken="data-deleteUrl">
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash">
 												<polyline points="3 6 5 6 21 6"></polyline>
 												<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -4208,6 +4208,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 								<span style="color: var(--text-main);">Markdown Supported</span>
 							</a>
 							<label></label>
+							<input type="hidden" name="token" value="" data-addToken="value"/>
 							<input type="hidden" name="createcomment" value="Comment" />
 							<button type="submit" id="postCommentBtn">Comment</button>
 						</form>
@@ -4578,7 +4579,15 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 									<span><?php echo $log['action']; ?></span>
 								</div>
 								<p style="font-size: 0.9rem; margin-top: 5px; margin-bottom: 5px;">
-									<?php echo $log['details']; ?></p>
+									<?php 
+									// if details are longer than 200 chars, use <details>
+									if (strlen($log['details']) > 200) {
+										echo "<details><summary>" . substr($log['details'], 0, 200) . "...</summary>" . $log['details'] . "</details>";
+									} else {
+										echo $log['details'];
+									}
+									?>
+								</p>
 
 								<div class="itemDetails">
 									<div class="left">
@@ -5051,6 +5060,11 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 			retarget(el.children[i])
 		}
 
+		// if is javascript: link, remove href
+		if (el.href && el.href.startsWith('javascript:')) {
+			el.removeAttribute('href');
+		}
+
 		// check for plain text links, and convert them to links, but only if they are not inside a code block and not already a link
 		// regex to match urls
 		const urlRegex = /((https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*))/gi;
@@ -5497,6 +5511,8 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 				element.action += '&token=' + document.getElementById('processToken').value;
 			} else if (element.dataset.addtoken == 'value') {
 				element.value = document.getElementById('processToken').value;
+			} else if (element.dataset.addtoken == 'data-deleteUrl') {
+				element.dataset.deleteurl += '&token=' + document.getElementById('processToken').value;
 			}
 		});
 

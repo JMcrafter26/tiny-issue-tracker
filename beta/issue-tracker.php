@@ -143,6 +143,31 @@ if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password'])
 		// forgot password
 		$message = "Please contact your administrator to reset your password";
 	}
+
+	if($config['max_failed_login_attempts'] != 0 ) {
+		// if $message is "Invalid username or password" increase failed login attempts
+		if ($message == "Invalid username or password") {
+			$_SESSION['failed_login_attempts'] = isset($_SESSION['failed_login_attempts']) ? $_SESSION['failed_login_attempts'] + 1 : 1;
+		}
+
+		if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] >= $config['max_failed_login_attempts']) {
+			// if isset failed login attempts timeout
+			if (!isset($_SESSION['failed_login_attempts_timeout'])) {
+				$_SESSION['failed_login_attempts_timeout'] = time() + 60; // 5 minutes
+			}
+			$message = "Too many failed login attempts. Please try again in <span id='loginTimeout'>" . ($_SESSION['failed_login_attempts_timeout'] - time()) . "</span> seconds";
+
+			// if failed login attempts timeout is over
+			if ($_SESSION['failed_login_attempts_timeout'] < time()) {
+				$_SESSION['failed_login_attempts'] = $config['max_failed_login_attempts'] - 1;
+				unset($_SESSION['failed_login_attempts_timeout']);
+				$message = "";
+			}
+		}
+	} else {
+		$_SESSION['failed_login_attempts'] = 0;
+	}
+	
 ?>
 	<html lang='en'>
 
@@ -298,10 +323,17 @@ if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password'])
 					<?php echo $message; ?>
 				</p>
 				<br>
-				<label>Username</label><input type="text" name="u" />
-				<label>Password</label><input type="password" name="p" />
+				<label>Username</label><input type="text" name="u" <?php if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] >= 3) {
+																		echo 'disabled';
+																	} ?> />
+				<label>Password</label><input type="password" name="p" <?php if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] >= 3) {
+																		echo 'disabled';
+																	} ?> />
 				<a class="forgot-password" href="?forgot-password">Forgot Password?</a>
-				<label></label><button type="submit" name="login" id="loginBtn">Sign In</button>
+				<label></label><button type="submit" name="login" id="loginBtn"
+				<?php if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] >= 3) {
+					echo 'disabled';
+				} ?>>Sign In</button>
 			</form>
 		</div>
 
@@ -355,6 +387,20 @@ if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password'])
 				loader.innerHTML = loaderIcon();
 
 				form.appendChild(loader);
+			}
+
+			// if isset loginTimeout, start countdown
+			if (document.getElementById('loginTimeout')) {
+				let loginTimeout = document.getElementById('loginTimeout').innerText;
+				let interval = setInterval(() => {
+					loginTimeout--;
+					document.getElementById('loginTimeout').innerText = loginTimeout;
+					if (loginTimeout <= 0) {
+						clearInterval(interval);
+						// reload the page
+						location.reload();
+					}
+				}, 1000);
 			}
 		</script>
 	</body>
@@ -620,7 +666,7 @@ if (isset($_GET["deleteissue"])) {
 if (isset($_GET["changepriority"])) {
 	$id = pdo_escape_string($_GET['id']);
 
-	if(checkToken($_GET['token']) == false) {
+	if(checkToken($_POST['token']) == false) {
 		$messageJson = array(
 			'id' => 'refresh_notification',
 			'icon' => 'error',
@@ -663,7 +709,7 @@ if (isset($_GET["changepriority"])) {
 if (isset($_GET["changestatus"])) {
 	$id = pdo_escape_string($_GET['id']);
 
-	if(checkToken($_GET['token']) == false) {
+	if(checkToken($_POST['token']) == false) {
 		$messageJson = array(
 			'id' => 'refresh_notification',
 			'icon' => 'error',
@@ -1474,21 +1520,27 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 	// log action
 	if (count($diff) > 0) {
 		logAction('Settings saved', 1, 'Settings saved by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') with changes: ' . $formattedDiff);
+		$messageJson = array(
+			"icon" => "success",
+			"title" => "Settings Saved",
+			"subtitle" => "Settings saved successfully",
+			"actions" => ["OK"],
+			"dismiss" => 3200
+		);
+	} else {
+		$messageJson = array(
+			"icon" => "success",
+			"title" => "Settings Saved",
+			"subtitle" => "No changes made",
+			"actions" => ["OK"],
+			"dismiss" => 3200
+		);
 	}
-	// logAction('Settings saved', 1, 'Settings saved by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
-	$messageJson = array(
-		"icon" => "success",
-		"title" => "Settings Saved",
-		"subtitle" => "Settings saved successfully",
-		"actions" => ["OK"],
-		"dismiss" => 3200
-	);
+
 	$_SESSION['messageJson'] = $messageJson;
 
 	header("Location: ?admin-panel&message=Settings saved");
 	exit();
-
-
 }
 
 if (isset($_GET["resetsettings"]) && isAdmin()) {
@@ -1643,6 +1695,9 @@ function setDefaults()
 	}
 	if (!isset($config['obfuscate_id'])) {
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('obfuscate_id', '0', '" . date("Y-m-d H:i:s") . "')");
+	}
+	if (!isset($config['max_failed_login_attempts'])) {
+		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('max_failed_login_attempts', '5', '" . date("Y-m-d H:i:s") . "')");
 	}
 
 	unset($config);
@@ -3419,6 +3474,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 
 	?>
 	<input id="notificationJson" type="hidden" value='<?php if (isset($messageJson)) echo json_encode($messageJson); ?>' />
+	<input id="processToken" type="hidden" value='<?php echo $_SESSION['processToken']; ?>' />
 <svg display="none">
         <symbol id="notification_clock" viewBox="0 0 32 32">
             <circle r="15" cx="16" cy="16" fill="none" stroke="currentColor" stroke-width="2" />
@@ -3483,7 +3539,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 				echo "<a href='{$_SERVER['PHP_SELF']}?admin-panel' alt='Admin Panel' style='color: #f85149;$style'>Admin Panel</a> | ";
 			}
 			?>
-			<a href="?logout&token=<?php echo $_SESSION['processToken'] ?>" alt="Logout" target="_self">
+			<a href="?logout" alt="Logout" target="_self" data-addToken="href">
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-log-out">
 					<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
 					<polyline points="16 17 21 12 16 7"></polyline>
@@ -3625,7 +3681,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 												} ?>" value="<?php echo (empty($issue['id']) ? "Create" : "Edit"); ?>" />
 					<label></label><button type="submit" class="right" id="submitFormBtn"><?php echo (empty($issue['id']) ? "Create" : "Save"); ?></button>
 
-					<input type="hidden" name="token" value="<?php echo $_SESSION['processToken'] ?>">
+					<input type="hidden" name="token" data-addToken="value">
 					<button onclick="document.getElementById('create').close();" style="float: right;" type="button">Cancel</button>
 
 				</form>
@@ -3972,7 +4028,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 								<option value="2" <?php echo ($issue['priority'] == 2 ? "selected" : ""); ?>>Medium</option>
 								<option value="3" <?php echo ($issue['priority'] == 3 ? "selected" : ""); ?>>Low</option>
 							</select>
-							<input type="hidden" name="token" value="<?php echo $_SESSION['processToken']; ?>" />
+							<input type="hidden" name="token" value="" data-addToken="value"/>
 							<input type="submit" style="display: none;" />
 						</form>
 						<form method="POST" action="<?php echo $_SERVER['PHP_SELF']; ?>?changestatus&id=<?php echo $issue['id']; ?>">
@@ -3989,7 +4045,8 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 									<option value="<?php echo $code; ?>" <?php echo ($issue['status'] == $code ? "selected" : ""); ?>><?php echo $name; ?></option>
 								<?php endforeach; ?>
 							</select>
-							<input type="hidden" name="token" value="<?php echo $_SESSION['processToken']; ?>" />
+							<input type="hidden" name="token" value="" data-addToken="value" />
+
 							<input type="submit" style="display: none;" />
 
 						</form>
@@ -3997,7 +4054,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 							<label></label>
 							<label></label>
 							<input type="hidden" name="id" value="<?php echo $issue['id']; ?>" />
-							<input type="hidden" name="token" value="<?php echo $_SESSION['processToken']; ?>" />
+							<input type="hidden" name="token" value="" data-addToken="value"/>
 							<?php
 							if ($_SESSION['t1t']['email'] && strpos($issue['notify_emails'], $_SESSION['t1t']['email']) === FALSE) {
 								echo "<input type='hidden' name='watch' value='Watch' />\n";
@@ -4092,7 +4149,9 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 							<br>
 							<div>
 								<button onclick="document.getElementById('confirmDelete').close();" class="left">Cancel</button>
-								<a class="right important btn" id="confirmDeleteButton" href="?deleteissue&id=<?php echo $issue['id']; ?>&token=<?php echo $_SESSION['processToken'] ?>" onclick="showLoader(this);">Delete</a>
+								<a class="right important btn" id="confirmDeleteButton" href="?deleteissue&id=<?php echo $issue['id']; ?>" onclick="showLoader(this);"
+								data-addToken="href"
+								>Delete</a>
 							</div>
 						</form>
 					</dialog>
@@ -4263,7 +4322,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 				<br>
 				<h3>Settings</h3>
 				<div class="settingContainer">
-					<form action="?savesettings&token=<?php echo $_SESSION['processToken'] ?>" method="POST">
+					<form action="?savesettings" method="POST" data-addToken="action">
 						<?php
 
 						// config is settings
@@ -4284,6 +4343,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 							"log_actions" => "boolean",
 							"obfuscate_id" => "boolean",
 							"allow_user_edits" => "boolean",
+							"max_failed_login_attempts" => "int",
 						);
 
 						// sort the settings by the $type keys
@@ -4298,8 +4358,8 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 							"send_from" => "The email address that emails will be sent from. This should be a valid email address.",
 							"obfuscate_id" => "Obfuscate issue IDs in the URL. This will make the issue ID in the URL a random string instead of the issue ID so it's harder to guess.",
 							"allow_user_edits" => "Allow users to each other's issues. Admins and mods can always edit issues",
-							"search" => "[BETA FEATURE] Show the search bar at the top of the page. This will allow users to search for issues by title or description."
-
+							"search" => "[BETA FEATURE] Show the search bar at the top of the page. This will allow users to search for issues by title or description.",
+							"max_failed_login_attempts" => "The maximum number of failed login attempts before the user is locked out of their account. Set to 0 to disable."
 						);
 
 						foreach ($settings as $key => $value) {
@@ -4341,6 +4401,9 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 										<option value="0" <?php echo ($value == 0 ? "selected" : ""); ?>>No</option>
 									</select>
 									<br>
+								<?php } else if ($type[$key] == "int") { ?>
+									<input style="width: calc(100% - 20px);" type="number" name="<?php echo $key; ?>" value="<?php echo $value; ?>" />
+									<br>
 								<?php } else { ?>
 									<input style="width: calc(100% - 20px);" type="text" name="<?php echo $key; ?>" value="<?php echo $value; ?>" />
 									<br>
@@ -4364,7 +4427,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 						<br>
 						<div>
 							<button onclick="document.getElementById('confirmResetSettings').close();" class="left">Cancel</button>
-							<a class="right important btn" id="confirmResetSettingsButton" href="?resetsettings&token=<?php echo $_SESSION['processToken'] ?>" onclick="showLoader(this);">Reset</a>
+							<a class="right important btn" id="confirmResetSettingsButton" href="?resetsetting" onclick="showLoader(this);" data-addToken="href">Reset</a>
 						</div>
 					</form>
 				</dialog>
@@ -4527,7 +4590,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 						</button>
 					</div>
 					<div>
-						<a href="?admin-panel&clearlogs&token=<?php echo $_SESSION['processToken'] ?>" class="right btn" style="margin-top: 10px; padding-left: 10px; padding-right: 10px;">
+						<a href="?admin-panel&clearlogs" data-addToken="href" class="right btn" style="margin-top: 10px; padding-left: 10px; padding-right: 10px;">
 							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash">
 								<polyline points="3 6 5 6 21 6"></polyline>
 								<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -5010,7 +5073,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 					} else {
 						ctxAction.style.display = 'block';
 						optionCount++;
-						ctxAction.href = `?editissue&id=${issueId}&token=<?php echo $_SESSION['processToken'] ?>`;
+						ctxAction.href = `?editissue&id=${issueId}&token=` + document.getElementById('processToken').value;
 					}
 				} else if (action == 'delete') {
 					// if allow delete is false, hide the delete button
@@ -5033,7 +5096,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 			});
 
 			const confirmDeleteButton = document.getElementById('confirmDeleteButton');
-			confirmDeleteButton.href = `?deleteissue&id=${issueId}&token=<?php echo $_SESSION['processToken'] ?>`;
+			confirmDeleteButton.href = `?deleteissue&id=${issueId}&token=` + document.getElementById('processToken').value;
 			if (document.getElementById('submitFormBtn')) {
 				document.getElementById('submitFormBtn').innerHTML = 'Save';
 			}
@@ -5084,7 +5147,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 							ctxAction.style.color = '#4caf50';
 							ctxAction.style.display = 'block';
 							ctxAction.onclick = '';
-							ctxAction.href = `?unbanuser&userId=${user.id}&token=<?php echo $_SESSION['processToken'] ?>`;
+							ctxAction.href = `?unbanuser&userId=${user.id}&token=` + document.getElementById('processToken').value;
 
 						} else {
 							ctxAction.style.display = 'block';
@@ -5109,8 +5172,8 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 				}
 			});
 
-			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}&token=<?php echo $_SESSION['processToken'] ?>`;
-			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}&token=<?php echo $_SESSION['processToken'] ?>`;
+			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}&token=` + document.getElementById('processToken').value;
+			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}&token=` + document.getElementById('processToken').value;
 			// change submitFormBtn to edit
 			if (document.getElementById('submitFormBtn')) {
 				document.getElementById('submitFormBtn').innerHTML = 'Save';
@@ -5227,7 +5290,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 							ctxAction.style.backgroundColor = '#4caf50';
 							ctxAction.style.display = 'block';
 							ctxAction.onclick = '';
-							ctxAction.href = `?unbanuser&userId=${user.id}&token=<?php echo $_SESSION['processToken'] ?>`;
+							ctxAction.href = `?unbanuser&userId=${user.id}&token=` + document.getElementById('processToken').value;
 
 						} else {
 							ctxAction.style.display = 'block';
@@ -5253,8 +5316,8 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 				return;
 			}
 
-			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}&token=<?php echo $_SESSION['processToken'] ?>`;
-			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}&token=<?php echo $_SESSION['processToken'] ?>`;
+			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}&token=` + document.getElementById('processToken').value;
+			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}&token=` + document.getElementById('processToken').value;
 			// change submitFormBtn to edit
 			if (document.getElementById('submitFormBtn')) {
 				document.getElementById('submitFormBtn').innerHTML = 'Save';
@@ -5263,11 +5326,11 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 			// loop through all ctx actions
 			ctxActions.forEach(ctxAction => {
 				if (ctxAction.dataset.ctxaction == 'edit') {
-					ctxAction.href = `?editissue&id=${target.dataset.issueid}&token=<?php echo $_SESSION['processToken'] ?>`;
+					ctxAction.href = `?editissue&id=${target.dataset.issueid}&token=` + document.getElementById('processToken').value;
 				} else if (ctxAction.dataset.ctxaction == 'delete') {
 					if (target.dataset.allowdelete == true) {
 						ctxAction.style.display = 'flex';
-						document.getElementById('confirmDeleteButton').href = `?deleteissue&id=${target.dataset.issueid}&token=<?php echo $_SESSION['processToken'] ?>`;
+						document.getElementById('confirmDeleteButton').href = `?deleteissue&id=${target.dataset.issueid}&token=` + document.getElementById('processToken').value;
 					} else {
 						ctxAction.style.display = 'none';
 						document.getElementById('confirmDeleteButton').href = '#';
@@ -5390,6 +5453,18 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 
 	function pageInit() {
 		showNotification();
+
+		// add processToken to elements with data-addToken
+		document.querySelectorAll('[data-addToken]').forEach(element => {
+			// if addtoken is href, add token to href
+			if (element.dataset.addtoken == 'href') {
+				element.href += '&token=' + document.getElementById('processToken').value;
+			} else if (element.dataset.addtoken == 'action') {
+				element.action += '&token=' + document.getElementById('processToken').value;
+			} else if (element.dataset.addtoken == 'value') {
+				element.value = document.getElementById('processToken').value;
+			}
+		});
 
 		// if message parameter in url is set, remove it 
 		// if (window.location.search.includes('message') || window.location.search.includes('getupdateinfo')) {

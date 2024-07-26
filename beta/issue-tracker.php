@@ -84,6 +84,12 @@ if ($DB_PREFIX != '') {
 // check for login post
 $message = "";
 if (isset($_POST["login"])) {
+
+	// if u or p is empty
+	if ($_POST["u"] == "" || $_POST["p"] == "") {
+		$message = "Username or password cannot be empty";
+	} else  {
+
 	// die(json_encode($n));
 	if (check_credentials($_POST["u"], $_POST["p"])) {
 
@@ -93,6 +99,7 @@ if (isset($_POST["login"])) {
 
 		logAction('Login failed', 3, getIp() . ' tried to login as ' . $_POST["u"] . ', but failed');
 	}
+}
 }
 
 // check for logout
@@ -147,8 +154,12 @@ if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password'])
 	if($config['max_failed_login_attempts'] != 0 ) {
 		// if $message is "Invalid username or password" increase failed login attempts
 		if ($message == "Invalid username or password") {
-			$_SESSION['failed_login_attempts'] = isset($_SESSION['failed_login_attempts']) ? $_SESSION['failed_login_attempts'] + 1 : 1;
+			if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] <= $config['max_failed_login_attempts']) {
+				$_SESSION['failed_login_attempts'] = isset($_SESSION['failed_login_attempts']) ? $_SESSION['failed_login_attempts'] + 1 : 1;
+			}
 		}
+
+
 
 		if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] >= $config['max_failed_login_attempts']) {
 			// if isset failed login attempts timeout
@@ -159,12 +170,19 @@ if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password'])
 
 			// if failed login attempts timeout is over
 			if ($_SESSION['failed_login_attempts_timeout'] < time()) {
-				$_SESSION['failed_login_attempts'] = $config['max_failed_login_attempts'] - 1;
+				$_SESSION['failed_login_attempts'] = $config['max_failed_login_attempts'] - 2;
+				if ($_SESSION['failed_login_attempts'] < 0) {
+					$_SESSION['failed_login_attempts'] = 0;
+				}
 				unset($_SESSION['failed_login_attempts_timeout']);
 				$message = "";
 			}
 		}
 	} else {
+		$_SESSION['failed_login_attempts'] = 0;
+	}
+
+	if(!isset($_SESSION['failed_login_attempts'])) {
 		$_SESSION['failed_login_attempts'] = 0;
 	}
 	
@@ -323,15 +341,15 @@ if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password'])
 					<?php echo $message; ?>
 				</p>
 				<br>
-				<label>Username</label><input type="text" name="u" <?php if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] >= 3) {
+				<label>Username</label><input type="text" name="u" <?php if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] >= $config['max_failed_login_attempts']) {
 																		echo 'disabled';
-																	} ?> />
-				<label>Password</label><input type="password" name="p" <?php if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] >= 3) {
+																	} ?> value="<?php echo isset($_POST['u']) ? $_POST['u'] : ''; ?>" />
+				<label>Password</label><input type="password" name="p" <?php if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] >= $config['max_failed_login_attempts']) {
 																		echo 'disabled';
 																	} ?> />
 				<a class="forgot-password" href="?forgot-password">Forgot Password?</a>
 				<label></label><button type="submit" name="login" id="loginBtn"
-				<?php if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] >= 3) {
+				<?php if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] >= $config['max_failed_login_attempts']) {
 					echo 'disabled';
 				} ?>>Sign In</button>
 			</form>
@@ -397,8 +415,9 @@ if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password'])
 					document.getElementById('loginTimeout').innerText = loginTimeout;
 					if (loginTimeout <= 0) {
 						clearInterval(interval);
-						// reload the page
-						location.reload();
+						setTimeout(() => {
+							location.reload();
+						}, 1500);
 					}
 				}, 1000);
 			}
@@ -1971,6 +1990,12 @@ function check_credentials($u = false, $p = false)
 	// global $USERS;
 	global $db;
 	global $TITLE;
+	global $config;
+
+	// do not check if failed login attempts are >= $config['max_failed_login_attempts']
+	if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] >= $config['max_failed_login_attempts']) {
+		return -1;
+	}
 
 	// using password_verify, get the user from the database
 	$u = htmlspecialchars(strtolower($u));
@@ -2111,6 +2136,15 @@ function check_credentials($u = false, $p = false)
 		// $_SESSION['t1t']['role'] = ($user['role'] == 1) ? true : false;
 		$_SESSION['t1t']['role'] = $user['role'];
 		$_SESSION['t1t']['id'] = $user['id'];
+
+		// unset failed login attempts
+		if (isset($_SESSION['failed_login_attempts'])) {
+			unset($_SESSION['failed_login_attempts']);
+		}
+		if (isset($_SESSION['failed_login_attempts_timeout'])) {
+			unset($_SESSION['failed_login_attempts_timeout']);
+		}
+
 		return true;
 	}
 

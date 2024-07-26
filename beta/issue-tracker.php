@@ -97,6 +97,22 @@ if (isset($_POST["login"])) {
 
 // check for logout
 if (isset($_GET['logout'])) {
+
+	if(checkToken($_GET['token']) == false) {
+		$messageJson = array(
+			'id' => 'refresh_notification',
+			'icon' => 'error',
+			'title' => 'Action failed',
+			'subtitle' => 'Refresh the page and try again',
+			'actions' => ['Refresh'],
+			'dismiss' => 3200
+		);
+		$_SESSION['messageJson'] = $messageJson;
+		// reload the CURRENT page
+		header("Location: ?");
+		exit();
+	}
+
 	logAction('User logged out', 1, 'User #u' . $_SESSION["t1t"]["id"] . ' (' . $_SESSION["t1t"]["username"] . ') logged out');
 
 	$_SESSION['t1t'] = array();  // username
@@ -465,6 +481,20 @@ if (!isset($issue) || count($issue) == 0) {
 // Create / Edit issue
 if (isset($_POST["createissue"])) {
 
+	if(checkToken($_POST['token']) == false) {
+		$messageJson = array(
+			'id' => 'refresh_notification',
+			'icon' => 'error',
+			'title' => 'Action failed',
+			'subtitle' => 'Refresh the page and try again',
+			'actions' => ['Refresh'],
+			'dismiss' => 3200
+		);
+		$_SESSION['messageJson'] = $messageJson;
+		header("Location: ?");
+		exit();
+	}
+
 	$id = pdo_escape_string($_POST['id']);
 
 	if ($obfuscateId && $id != '') {
@@ -532,7 +562,26 @@ if (isset($_POST["createissue"])) {
 
 // Delete issue
 if (isset($_GET["deleteissue"])) {
+
+
+
 	$id = pdo_escape_string($_GET['id']);
+
+	if(checkToken($_GET['token']) == false) {
+		$messageJson = array(
+			'id' => 'refresh_notification',
+			'icon' => 'error',
+			'title' => 'Action failed',
+			'subtitle' => 'Refresh the page and try again',
+			'actions' => ['Refresh'],
+			'dismiss' => 3200
+		);
+		$_SESSION['messageJson'] = $messageJson;
+		// reload the CURRENT page
+		header("Location: ?id=$id");
+		exit();
+	}
+
 	if ($obfuscateId) {
 		$id = deobfuscateId($id);
 	}
@@ -570,6 +619,22 @@ if (isset($_GET["deleteissue"])) {
 // Change Priority
 if (isset($_GET["changepriority"])) {
 	$id = pdo_escape_string($_GET['id']);
+
+	if(checkToken($_GET['token']) == false) {
+		$messageJson = array(
+			'id' => 'refresh_notification',
+			'icon' => 'error',
+			'title' => 'Action failed',
+			'subtitle' => 'Refresh the page and try again',
+			'actions' => ['Refresh'],
+			'dismiss' => 3200
+		);
+		$_SESSION['messageJson'] = $messageJson;
+		// reload the CURRENT page
+		header("Location: ?id=$id");
+		exit();
+	}
+
 	if ($obfuscateId) {
 		$id = deobfuscateId($id);
 	}
@@ -597,6 +662,22 @@ if (isset($_GET["changepriority"])) {
 // change status
 if (isset($_GET["changestatus"])) {
 	$id = pdo_escape_string($_GET['id']);
+
+	if(checkToken($_GET['token']) == false) {
+		$messageJson = array(
+			'id' => 'refresh_notification',
+			'icon' => 'error',
+			'title' => 'Action failed',
+			'subtitle' => 'Refresh the page and try again',
+			'actions' => ['Refresh'],
+			'dismiss' => 3200
+		);
+		$_SESSION['messageJson'] = $messageJson;
+		// reload the CURRENT page
+		header("Location: ?id=$id");
+		exit();
+	}
+
 	if ($obfuscateId) {
 		$id = deobfuscateId($id);
 	}
@@ -623,6 +704,22 @@ if (isset($_GET["changestatus"])) {
 // Unwatch
 if (isset($_POST["unwatch"])) {
 	$id = pdo_escape_string($_POST['id']);
+
+	if(checkToken($_POST['token']) == false) {
+		$messageJson = array(
+			'id' => 'refresh_notification',
+			'icon' => 'error',
+			'title' => 'Action failed',
+			'subtitle' => 'Refresh the page and try again',
+			'actions' => ['Refresh'],
+			'dismiss' => 3200
+		);
+		$_SESSION['messageJson'] = $messageJson;
+		// reload the CURRENT page
+		header("Location: ?id=$id");
+		exit();
+	}
+
 	if ($obfuscateId) {
 		$id = deobfuscateId($id);
 	}
@@ -636,6 +733,22 @@ if (isset($_POST["unwatch"])) {
 // Watch
 if (isset($_POST["watch"])) {
 	$id = pdo_escape_string($_POST['id']);
+
+	if(checkToken($_POST['token']) == false) {
+		$messageJson = array(
+			'id' => 'refresh_notification',
+			'icon' => 'error',
+			'title' => 'Action failed',
+			'subtitle' => 'Refresh the page and try again',
+			'actions' => ['Refresh'],
+			'dismiss' => 3200
+		);
+		$_SESSION['messageJson'] = $messageJson;
+		// reload the CURRENT page
+		header("Location: ?id=$id");
+		exit();
+	}
+
 	if ($obfuscateId) {
 		$id = deobfuscateId($id);
 	}
@@ -651,6 +764,22 @@ if (isset($_POST["watch"])) {
 if (isset($_POST["createcomment"])) {
 
 	$issue_id = pdo_escape_string($_POST['issue_id']);
+
+	if(checkToken($_GET['token']) == false) {
+		$messageJson = array(
+			'id' => 'refresh_notification',
+			'icon' => 'error',
+			'title' => 'Action failed',
+			'subtitle' => 'Refresh the page and try again',
+			'actions' => ['Refresh'],
+			'dismiss' => 3200
+		);
+		$_SESSION['messageJson'] = $messageJson;
+		// reload the CURRENT page
+		header("Location: ?id=$id");
+		exit();
+	}
+
 	if ($obfuscateId) {
 		$issue_id = deobfuscateId($issue_id);
 	}
@@ -683,6 +812,22 @@ if (isset($_POST["createcomment"])) {
 // Delete Comment
 if (isset($_GET["deletecomment"])) {
 	$id = pdo_escape_string($_GET['id']);
+
+	if(checkToken($_GET['token']) == false) {
+		$messageJson = array(
+			'id' => 'refresh_notification',
+			'icon' => 'error',
+			'title' => 'Action failed',
+			'subtitle' => 'Refresh the page and try again',
+			'actions' => ['Refresh'],
+			'dismiss' => 3200
+		);
+		$_SESSION['messageJson'] = $messageJson;
+		// reload the CURRENT page
+		header("Location: ?id=$id");
+		exit();
+	}
+
 	if ($obfuscateId) {
 		$id = deobfuscateId($id);
 	}
@@ -797,8 +942,27 @@ if (isset($_GET["search"])) {
 
 // Create / Edit User
 if (isset($_POST["edituser"])) {
+
+
+
 	// check if user is admin
 	if (isAdmin() && isset($_POST["username"]) && isset($_POST["email"]) && isset($_POST["status"])) {
+
+		if(checkToken($_GET['token']) == false) {
+			$messageJson = array(
+				'id' => 'refresh_notification',
+				'icon' => 'error',
+				'title' => 'Action failed',
+				'subtitle' => 'Refresh the page and try again',
+				'actions' => ['Refresh'],
+				'dismiss' => 3200
+			);
+			$_SESSION['messageJson'] = $messageJson;
+			// reload the CURRENT page
+			header("Location: ?admin-panel");
+			exit();
+		}
+
 		$mode = "admin";
 
 
@@ -873,8 +1037,26 @@ if (isset($_POST["edituser"])) {
 
 // Delete User
 if (isset($_GET["deleteuser"])) {
+
+
 	// check if user is admin
 	if (isAdmin() && isset($_GET["userId"])) {
+
+		if(checkToken($_GET['token']) == false) {
+			$messageJson = array(
+				'id' => 'refresh_notification',
+				'icon' => 'error',
+				'title' => 'Action failed',
+				'subtitle' => 'Refresh the page and try again',
+				'actions' => ['Refresh'],
+				'dismiss' => 3200
+			);
+			$_SESSION['messageJson'] = $messageJson;
+			// reload the CURRENT page
+			header("Location: ?admin-panel");
+			exit();
+		}
+
 		$mode = "admin";
 
 		$now = date("Y-m-d H:i:s");
@@ -929,6 +1111,22 @@ if (isset($_GET["deleteuser"])) {
 if (isset($_GET["banuser"])) {
 	// check if user is admin
 	if (isAdmin() && isset($_GET['userId'])) {
+
+		if(checkToken($_GET['token']) == false) {
+			$messageJson = array(
+				'id' => 'refresh_notification',
+				'icon' => 'error',
+				'title' => 'Action failed',
+				'subtitle' => 'Refresh the page and try again',
+				'actions' => ['Refresh'],
+				'dismiss' => 3200
+			);
+			$_SESSION['messageJson'] = $messageJson;
+			// reload the CURRENT page
+			header("Location: ?admin-panel");
+			exit();
+		}
+
 		$mode = "admin";
 
 
@@ -988,9 +1186,23 @@ if (isset($_GET["unbanuser"])) {
 
 	// check if user is admin
 	if (isAdmin() && isset($_GET["userId"])) {
+
+		if(checkToken($_GET['token']) == false) {
+			$messageJson = array(
+				'id' => 'refresh_notification',
+				'icon' => 'error',
+				'title' => 'Action failed',
+				'subtitle' => 'Refresh the page and try again',
+				'actions' => ['Refresh'],
+				'dismiss' => 3200
+			);
+			$_SESSION['messageJson'] = $messageJson;
+			// reload the CURRENT page
+			header("Location: ?admin-panel");
+			exit();
+		}
+
 		$mode = "admin";
-
-
 
 		$id = pdo_escape_string($_GET['userId']);
 		$now = date("Y-m-d H:i:s");
@@ -1113,6 +1325,22 @@ if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 }
 
 if (isset($_GET["clearlogs"]) && isAdmin()) {
+
+	if(checkToken($_GET['token']) == false) {
+		$messageJson = array(
+			'id' => 'refresh_notification',
+			'icon' => 'error',
+			'title' => 'Action failed',
+			'subtitle' => 'Refresh the page and try again',
+			'actions' => ['Refresh'],
+			'dismiss' => 3200
+		);
+		$_SESSION['messageJson'] = $messageJson;
+		// reload the CURRENT page
+		header("Location: ?admin-panel");
+		exit();
+	}
+
 	$db->exec("DELETE FROM " . $DB_PREFIX . "logs");
 	logAction('Logs cleared', 3, 'Logs cleared by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
 	$messageJson = array(
@@ -1152,6 +1380,22 @@ $settingsBlacklist = array(
 );
 
 if (isset($_GET["savesettings"]) && isAdmin()) {
+
+	if(checkToken($_GET['token']) == false) {
+		$messageJson = array(
+			'id' => 'refresh_notification',
+			'icon' => 'error',
+			'title' => 'Action failed',
+			'subtitle' => 'Refresh the page and try again',
+			'actions' => ['Refresh'],
+			'dismiss' => 3200
+		);
+		$_SESSION['messageJson'] = $messageJson;
+		// reload the CURRENT page
+		header("Location: ?admin-panel");
+		exit();
+	}
+	
 	// save settings
 	foreach ($_POST as $key => $value) {
 		// check if setting is in blacklist
@@ -1248,6 +1492,22 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 }
 
 if (isset($_GET["resetsettings"]) && isAdmin()) {
+
+	if(checkToken($_GET['token']) == false) {
+		$messageJson = array(
+			'id' => 'refresh_notification',
+			'icon' => 'error',
+			'title' => 'Action failed',
+			'subtitle' => 'Refresh the page and try again',
+			'actions' => ['Refresh'],
+			'dismiss' => 3200
+		);
+		$_SESSION['messageJson'] = $messageJson;
+		// reload the CURRENT page
+		header("Location: ?admin-panel");
+		exit();
+	}
+
 	$db->exec("DELETE FROM " . $DB_PREFIX . "config WHERE key != 'seed' AND key != 'version'");
 	setDefaults();
 	logAction('Settings reset', 3, 'Settings reset by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
@@ -1818,6 +2078,13 @@ function getIp()
 	return $ip;
 }
 
+function checkToken($token) {
+	if (!isset($_SESSION['processToken']) || !isset($token) || $_SESSION['processToken'] != $token) {
+		return false;
+	}
+	return true;
+}
+
 function check_first_time()
 {
 	global $db;
@@ -2020,7 +2287,7 @@ function showCriticalError($message, $details)
 					<h3>As a user</h3>
 				</summary>
 				<p>Contact the administrator and try again later</p>
-				<p>You can also try to <a href='javascript:window.location.reload()'>reload the page</a> or <a href='?logout'>logout</a></p>
+				<p>You can also try to <a href='javascript:window.location.reload()'>reload the page</a> or <a href='?logout&token=<?php echo $_SESSION['processToken'] ?>'>logout</a></p>
 			</details>
 			<details>
 				<summary>
@@ -2241,7 +2508,7 @@ function insertJquery()
 }
 
 
-// include 'inc.php';
+$_SESSION['processToken'] = bin2hex(random_bytes(32));
 ?>
 
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
@@ -3216,7 +3483,7 @@ function insertJquery()
 				echo "<a href='{$_SERVER['PHP_SELF']}?admin-panel' alt='Admin Panel' style='color: #f85149;$style'>Admin Panel</a> | ";
 			}
 			?>
-			<a href="?logout" alt="Logout" target="_self">
+			<a href="?logout&token=<?php echo $_SESSION['processToken'] ?>" alt="Logout" target="_self">
 				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-log-out">
 					<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
 					<polyline points="16 17 21 12 16 7"></polyline>
@@ -3330,10 +3597,23 @@ function insertJquery()
 					?>
 
 							<script>
-								var elementId123 = '<?php echo $mode == "admin" ? "confirmDelete" : "confirmDeleteButton"; ?>';
+								var elementId123 = '<?php 
+								if($mode == "admin") {
+								// echo $mode == "admin" ? "confirmDelete" : "confirmDeleteButton"; 
+								echo "confirmDelete";
+								} else if ($mode == "issue") {
+									echo "confirmDeleteIssue";
+								} else {
+									echo "confirmDelete";
+								}
+								
+								?>';
 							</script>
 
-							<button onclick="document.getElementById(elementId123).showModal();" style="background-color: #f85149;">Delete</button>
+							<button onclick="
+							<?php if($mode == 'issue') { echo "document.getElementById('create').close();"; } ?>
+							document.getElementById(elementId123).showModal();
+							document.getElementById(elementId123).focus();" style="background-color: #f85149;">Delete</button>
 					<?php
 						}
 					}
@@ -3345,7 +3625,7 @@ function insertJquery()
 												} ?>" value="<?php echo (empty($issue['id']) ? "Create" : "Edit"); ?>" />
 					<label></label><button type="submit" class="right" id="submitFormBtn"><?php echo (empty($issue['id']) ? "Create" : "Save"); ?></button>
 
-
+					<input type="hidden" name="token" value="<?php echo $_SESSION['processToken'] ?>">
 					<button onclick="document.getElementById('create').close();" style="float: right;" type="button">Cancel</button>
 
 				</form>
@@ -3672,9 +3952,7 @@ function insertJquery()
 								<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
 								<circle cx="12" cy="7" r="4"></circle>
 							</svg>
-							<?php echo $issue['user']; ?> - <?php echo timeToString($issue['entrytime']); ?> ago
-
-							ID: <?php echo $issue['id']; ?>
+							<?php echo $issue['user']; ?> - <span title="<?php echo $issue['entrytime']; ?>" onclick="alert('<?php echo $issue['entrytime']; ?>');"><?php echo timeToString($issue['entrytime']); ?> ago</span> 
 						</div>
 					</div>
 					<hr style="width: 100%; margin-top: 15px;">
@@ -3694,6 +3972,7 @@ function insertJquery()
 								<option value="2" <?php echo ($issue['priority'] == 2 ? "selected" : ""); ?>>Medium</option>
 								<option value="3" <?php echo ($issue['priority'] == 3 ? "selected" : ""); ?>>Low</option>
 							</select>
+							<input type="hidden" name="token" value="<?php echo $_SESSION['processToken']; ?>" />
 							<input type="submit" style="display: none;" />
 						</form>
 						<form method="POST" action="<?php echo $_SERVER['PHP_SELF']; ?>?changestatus&id=<?php echo $issue['id']; ?>">
@@ -3710,6 +3989,7 @@ function insertJquery()
 									<option value="<?php echo $code; ?>" <?php echo ($issue['status'] == $code ? "selected" : ""); ?>><?php echo $name; ?></option>
 								<?php endforeach; ?>
 							</select>
+							<input type="hidden" name="token" value="<?php echo $_SESSION['processToken']; ?>" />
 							<input type="submit" style="display: none;" />
 
 						</form>
@@ -3717,6 +3997,7 @@ function insertJquery()
 							<label></label>
 							<label></label>
 							<input type="hidden" name="id" value="<?php echo $issue['id']; ?>" />
+							<input type="hidden" name="token" value="<?php echo $_SESSION['processToken']; ?>" />
 							<?php
 							if ($_SESSION['t1t']['email'] && strpos($issue['notify_emails'], $_SESSION['t1t']['email']) === FALSE) {
 								echo "<input type='hidden' name='watch' value='Watch' />\n";
@@ -3770,7 +4051,7 @@ function insertJquery()
 									<em><?php echo $comment['user']; ?></em>
 									posted
 								</span>
-								<em><span title='<?php echo $comment['entrytime']; ?>'><?php echo $timeAgo; ?></span> ago</em>
+								<em><span title='<?php echo $comment['entrytime']; ?>'><span title='<?php echo $comment['entrytime']; ?>' onclick="alert('<?php echo $comment['entrytime']; ?>');"><?php echo $timeAgo; ?></span> ago</span></em>
 								<span class='right'>
 									<a href='#c<?php echo $comment['id']; ?>' title="Get comment link" class="no-text-decoration">
 										<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-link">
@@ -3811,7 +4092,7 @@ function insertJquery()
 							<br>
 							<div>
 								<button onclick="document.getElementById('confirmDelete').close();" class="left">Cancel</button>
-								<a class="right important btn" id="confirmDeleteButton" href="?deleteissue&id=<?php echo $issue['id']; ?>" onclick="showLoader(this);">Delete</a>
+								<a class="right important btn" id="confirmDeleteButton" href="?deleteissue&id=<?php echo $issue['id']; ?>&token=<?php echo $_SESSION['processToken'] ?>" onclick="showLoader(this);">Delete</a>
 							</div>
 						</form>
 					</dialog>
@@ -3823,7 +4104,8 @@ function insertJquery()
 							showLoader(this);
 						" id="commentForm">
 							<input type="hidden" name="issue_id" value="<?php echo $issue['id']; ?>" />
-							<textarea id="commentInput" name="description" rows="5" cols="50" style="width: 100%;" placeholder="Comment here..."></textarea>
+							<textarea id="commentInput" name="description" rows="5" cols="50" style="width: 100%;" placeholder="Comment here..."
+							onkeydown="if(event.ctrlKey && event.key == 'Enter'){ this.parentElement.querySelector('button[type=submit]').click(); }"></textarea>
 							<a class="right no-text-decoration" target="_blank" title="Markdown Cheatsheet" href="https://gist.github.com/JMcrafter26/b6428ddeb6cd40e3fc99ff6df74ff707#file-edited-markdown-cheat-sheet-md">
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-help-circle">
 									<circle cx="12" cy="12" r="10"></circle>
@@ -3981,7 +4263,7 @@ function insertJquery()
 				<br>
 				<h3>Settings</h3>
 				<div class="settingContainer">
-					<form action="?savesettings" method="POST">
+					<form action="?savesettings&token=<?php echo $_SESSION['processToken'] ?>" method="POST">
 						<?php
 
 						// config is settings
@@ -4082,7 +4364,7 @@ function insertJquery()
 						<br>
 						<div>
 							<button onclick="document.getElementById('confirmResetSettings').close();" class="left">Cancel</button>
-							<a class="right important btn" id="confirmResetSettingsButton" href="?resetsettings" onclick="showLoader(this);">Reset</a>
+							<a class="right important btn" id="confirmResetSettingsButton" href="?resetsettings&token=<?php echo $_SESSION['processToken'] ?>" onclick="showLoader(this);">Reset</a>
 						</div>
 					</form>
 				</dialog>
@@ -4218,7 +4500,7 @@ function insertJquery()
 											}
 										}
 										?>
-										<span><?php echo $user['username']; ?></span> - <span title="<?php echo $log['entrytime']; ?>"><?php echo timeToString($log['entrytime']); ?></span> ago
+										<span><?php echo $user['username']; ?></span> - <span title="<?php echo $log['entrytime']; ?>" onclick="alert(this.title);"><?php echo timeToString($log['entrytime']); ?></span> ago
 									</div>
 								</div>
 							</div>
@@ -4245,7 +4527,7 @@ function insertJquery()
 						</button>
 					</div>
 					<div>
-						<a href="?admin-panel&clearlogs" class="right btn" style="margin-top: 10px; padding-left: 10px; padding-right: 10px;">
+						<a href="?admin-panel&clearlogs&token=<?php echo $_SESSION['processToken'] ?>" class="right btn" style="margin-top: 10px; padding-left: 10px; padding-right: 10px;">
 							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash">
 								<polyline points="3 6 5 6 21 6"></polyline>
 								<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -4431,6 +4713,10 @@ function insertJquery()
 <script>
 	document.addEventListener("notificationAction", (e) => {
 			console.log(`Notification ${e.detail.id} action: ${e.detail.action}`);
+			// if id is refresh_notification and action is Refresh, refresh the page
+			if (e.detail.id == "refresh_notification" && e.detail.action == "Refresh") {
+				location.reload();
+			}
 	});
 
 	function showNotification() {
@@ -4724,7 +5010,7 @@ function insertJquery()
 					} else {
 						ctxAction.style.display = 'block';
 						optionCount++;
-						ctxAction.href = `?editissue&id=${issueId}`;
+						ctxAction.href = `?editissue&id=${issueId}&token=<?php echo $_SESSION['processToken'] ?>`;
 					}
 				} else if (action == 'delete') {
 					// if allow delete is false, hide the delete button
@@ -4747,7 +5033,7 @@ function insertJquery()
 			});
 
 			const confirmDeleteButton = document.getElementById('confirmDeleteButton');
-			confirmDeleteButton.href = `?deleteissue&id=${issueId}`;
+			confirmDeleteButton.href = `?deleteissue&id=${issueId}&token=<?php echo $_SESSION['processToken'] ?>`;
 			if (document.getElementById('submitFormBtn')) {
 				document.getElementById('submitFormBtn').innerHTML = 'Save';
 			}
@@ -4798,7 +5084,7 @@ function insertJquery()
 							ctxAction.style.color = '#4caf50';
 							ctxAction.style.display = 'block';
 							ctxAction.onclick = '';
-							ctxAction.href = `?unbanuser&userId=${user.id}`;
+							ctxAction.href = `?unbanuser&userId=${user.id}&token=<?php echo $_SESSION['processToken'] ?>`;
 
 						} else {
 							ctxAction.style.display = 'block';
@@ -4823,8 +5109,8 @@ function insertJquery()
 				}
 			});
 
-			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}`;
-			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}`;
+			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}&token=<?php echo $_SESSION['processToken'] ?>`;
+			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}&token=<?php echo $_SESSION['processToken'] ?>`;
 			// change submitFormBtn to edit
 			if (document.getElementById('submitFormBtn')) {
 				document.getElementById('submitFormBtn').innerHTML = 'Save';
@@ -4941,7 +5227,7 @@ function insertJquery()
 							ctxAction.style.backgroundColor = '#4caf50';
 							ctxAction.style.display = 'block';
 							ctxAction.onclick = '';
-							ctxAction.href = `?unbanuser&userId=${user.id}`;
+							ctxAction.href = `?unbanuser&userId=${user.id}&token=<?php echo $_SESSION['processToken'] ?>`;
 
 						} else {
 							ctxAction.style.display = 'block';
@@ -4967,8 +5253,8 @@ function insertJquery()
 				return;
 			}
 
-			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}`;
-			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}`;
+			document.getElementById('confirmDeleteButton').href = `?deleteuser&userId=${user.id}&token=<?php echo $_SESSION['processToken'] ?>`;
+			document.getElementById('confirmBanButton').href = `?banuser&userId=${user.id}&token=<?php echo $_SESSION['processToken'] ?>`;
 			// change submitFormBtn to edit
 			if (document.getElementById('submitFormBtn')) {
 				document.getElementById('submitFormBtn').innerHTML = 'Save';
@@ -4977,11 +5263,11 @@ function insertJquery()
 			// loop through all ctx actions
 			ctxActions.forEach(ctxAction => {
 				if (ctxAction.dataset.ctxaction == 'edit') {
-					ctxAction.href = `?editissue&id=${target.dataset.issueid}`;
+					ctxAction.href = `?editissue&id=${target.dataset.issueid}&token=<?php echo $_SESSION['processToken'] ?>`;
 				} else if (ctxAction.dataset.ctxaction == 'delete') {
 					if (target.dataset.allowdelete == true) {
 						ctxAction.style.display = 'flex';
-						document.getElementById('confirmDeleteButton').href = `?deleteissue&id=${target.dataset.issueid}`;
+						document.getElementById('confirmDeleteButton').href = `?deleteissue&id=${target.dataset.issueid}&token=<?php echo $_SESSION['processToken'] ?>`;
 					} else {
 						ctxAction.style.display = 'none';
 						document.getElementById('confirmDeleteButton').href = '#';

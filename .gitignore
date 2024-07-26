@@ -14,3 +14,4 @@ inc.php
 backup-*
 
 /beta/old*
+/beta/issue-tracker-instance.php

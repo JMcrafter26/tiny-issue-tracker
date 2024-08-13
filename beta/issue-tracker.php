@@ -49,6 +49,7 @@ if (!defined("TIT_INCLUSION")) {
 ////////////////////////////////////////////////////////////////////////
 
 $VERSION = 3.3;
+$DEBUG = true;
 
 foreach ($_GET  as $k => $v) $_GET[$k] = stripslashes($v);
 foreach ($_POST as $k => $v) $_POST[$k] = stripslashes($v);
@@ -1013,7 +1014,7 @@ if (isset($_POST["edituser"])) {
 	// check if user is admin
 	if (isAdmin() && isset($_POST["username"]) && isset($_POST["email"]) && isset($_POST["status"])) {
 
-		if(checkToken($_GET['token']) == false) {
+		if(checkToken($_POST['token']) == false) {
 			$messageJson = array(
 				'id' => 'refresh_notification',
 				'icon' => 'error',
@@ -1718,6 +1719,10 @@ function setDefaults()
 	if (!isset($config['max_failed_login_attempts'])) {
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('max_failed_login_attempts', '5', '" . date("Y-m-d H:i:s") . "')");
 	}
+	
+	if (!isset($config['enable_mail_notifications'])) {
+		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('enable_mail_notifications', '0', '" . date("Y-m-d H:i:s") . "')");
+	}
 
 	unset($config);
 	// $config = $db->query("SELECT * FROM config")->fetchAll();
@@ -2091,7 +2096,7 @@ function check_credentials($u = false, $p = false)
 			<hr>
 			<h3>Login as another user</h3>
 			<div class='container'>
-				<form method='POST' action='" . $_SERVER["REQUEST_URI"] . "'>
+				<form method='POST' action='<?php echo $_SERVER["REQUEST_URI"]; ?>'>
 					<label>Username</label><input type='text' name='u' />
 					<label>Password</label><input type='password' name='p' />
 					<label></label><input type='submit' name='login' value='Login' />
@@ -2438,11 +2443,12 @@ function notify($id, $subject, $body)
 	$result = $db->query("SELECT notify_emails FROM " . $DB_PREFIX . "issues WHERE id='$id'")->fetchAll();
 	$to = $result[0]['notify_emails'];
 
-	if ($to != '') {
+	if ($to != '' && $DEBUG == false) {
 		global $EMAIL;
 		$headers = "From: $EMAIL" . "\r\n" . 'X-Mailer: PHP/' . phpversion();
-
 		try {
+			
+			// currently not supported. Needs work
 			// mail($to, $subject, $body, $headers);   
 
 			/* 
@@ -3715,7 +3721,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 												} ?>" value="<?php echo (empty($issue['id']) ? "Create" : "Edit"); ?>" />
 					<label></label><button type="submit" class="right" id="submitFormBtn"><?php echo (empty($issue['id']) ? "Create" : "Save"); ?></button>
 
-					<input type="hidden" name="token" data-addToken="value">
+					<input type="hidden" name="token" data-addToken="value" value="">
 					<button onclick="document.getElementById('create').close();" style="float: right;" type="button">Cancel</button>
 
 				</form>
@@ -4372,13 +4378,15 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 						$type = array(
 							"project_title" => "string",
 							"states" => "string",
-							"send_from" => "string",
 							"show_footer" => "boolean",
 							"search" => "boolean",
 							"log_actions" => "boolean",
+							"enable_mail_notifications" => 'boolean',
+							"send_from" => "string",
 							"obfuscate_id" => "boolean",
 							"allow_user_edits" => "boolean",
 							"max_failed_login_attempts" => "int",
+							
 						);
 
 						// sort the settings by the $type keys
@@ -4394,7 +4402,8 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 							"obfuscate_id" => "Obfuscate issue IDs in the URL. This will make the issue ID in the URL a random string instead of the issue ID so it's harder to guess.",
 							"allow_user_edits" => "Allow users to each other's issues. Admins and mods can always edit issues",
 							"search" => "[BETA FEATURE] Show the search bar at the top of the page. This will allow users to search for issues by title or description.",
-							"max_failed_login_attempts" => "The maximum number of failed login attempts before the user is locked out of their account. Set to 0 to disable."
+							"max_failed_login_attempts" => "The maximum number of failed login attempts before the user is locked out of their account. Set to 0 to disable.",
+							"enable_mail_notifications" => "If enabled, this will send emails to users which 'watch' an issue. These emails contain updates about the issue, e.g. new comments",
 						);
 
 						foreach ($settings as $key => $value) {

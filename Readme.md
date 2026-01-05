@@ -28,7 +28,7 @@ Tiny Issue Tracker is SQLite based, single-file issue tracker.
 - [ ] Production Ready Release
 - [ ] Better email notifications
 - [ ] Tags for issues
-- [ ] Reaktions (Only if necessary)
+- [ ] Reactions (Only if necessary)
 - [ ] More Options for Admins
 - [ ] Stay logged in (Cookies)
 - [ ] Better security (CSRF, Obfuscate all IDs, etc.)!

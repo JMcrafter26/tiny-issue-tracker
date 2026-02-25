@@ -28,6 +28,19 @@ Tiny Issue Tracker is SQLite based, single-file issue tracker.
 - Modify configurations in the file (issue-tracker.php)
 - Upload to webserver (rename if necessary) & load from browser
 
+## Screenshots
+
+<details>
+  <summary>Click to expand</summary>
+
+<img width="960" height="716" alt="image" src="https://github.com/user-attachments/assets/6306fe91-8af7-418a-a698-5348a1fdeeb4" />
+<img width="911" height="1362" alt="image" src="https://github.com/user-attachments/assets/6cac6147-be15-4d0f-8958-c23104c02ecb" />
+
+<img width="882" height="1370" alt="image" src="https://github.com/user-attachments/assets/c67148ee-58da-4f78-9ddb-53f0bde0a890" />
+
+  
+</details>
+
 ## Currently Working On
 
 - [ ] Production Ready Release

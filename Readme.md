@@ -20,6 +20,11 @@ Tiny Issue Tracker is SQLite based, single-file issue tracker.
 
 ## Installation
 
+> [!IMPORTANT]
+> Please use the beta version located in the [`beta` directory](https://github.com/JMcrafter26/tiny-issue-tracker/tree/main/beta),
+> as the other version has database issues.
+
+- Donwload `tiny-issue-tracker.php` located in the [`beta directory`](https://github.com/JMcrafter26/tiny-issue-tracker/tree/main/beta)
 - Modify configurations in the file (issue-tracker.php)
 - Upload to webserver (rename if necessary) & load from browser
 

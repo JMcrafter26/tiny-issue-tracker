@@ -89,24 +89,24 @@ if (isset($_POST["login"])) {
 	// if u or p is empty
 	if ($_POST["u"] == "" || $_POST["p"] == "") {
 		$message = "Username or password cannot be empty";
-	} else  {
-
-	// die(json_encode($n));
-	if (check_credentials($_POST["u"], $_POST["p"])) {
-
-		header("Location: ?");
 	} else {
-		$message = "Invalid username or password";
 
-		logAction('Login failed', 3, getIp() . ' tried to login as ' . $_POST["u"] . ', but failed');
+		// die(json_encode($n));
+		if (check_credentials($_POST["u"], $_POST["p"])) {
+
+			header("Location: ?");
+		} else {
+			$message = "Invalid username or password";
+
+			logAction('Login failed', 3, getIp() . ' tried to login as ' . $_POST["u"] . ', but failed');
+		}
 	}
-}
 }
 
 // check for logout
 if (isset($_GET['logout'])) {
 
-	if(checkToken($_GET['token']) == false) {
+	if (checkToken($_GET['token']) == false) {
 		$messageJson = array(
 			'id' => 'refresh_notification',
 			'icon' => 'error',
@@ -152,7 +152,7 @@ if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password'])
 		$message = "Please contact your administrator to reset your password";
 	}
 
-	if($config['max_failed_login_attempts'] != 0 ) {
+	if ($config['max_failed_login_attempts'] != 0) {
 		// if $message is "Invalid username or password" increase failed login attempts
 		if ($message == "Invalid username or password") {
 			if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] <= $config['max_failed_login_attempts']) {
@@ -183,10 +183,10 @@ if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password'])
 		$_SESSION['failed_login_attempts'] = 0;
 	}
 
-	if(!isset($_SESSION['failed_login_attempts'])) {
+	if (!isset($_SESSION['failed_login_attempts'])) {
 		$_SESSION['failed_login_attempts'] = 0;
 	}
-	
+
 ?>
 	<html lang='en'>
 
@@ -346,13 +346,13 @@ if (!isset($_SESSION['t1t']['username']) || !isset($_SESSION['t1t']['password'])
 																		echo 'disabled';
 																	} ?> value="<?php echo isset($_POST['u']) ? $_POST['u'] : ''; ?>" />
 				<label>Password</label><input type="password" name="p" <?php if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] >= $config['max_failed_login_attempts']) {
-																		echo 'disabled';
-																	} ?> />
+																			echo 'disabled';
+																		} ?> />
 				<a class="forgot-password" href="?forgot-password">Forgot Password?</a>
 				<label></label><button type="submit" name="login" id="loginBtn"
-				<?php if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] >= $config['max_failed_login_attempts']) {
-					echo 'disabled';
-				} ?>>Sign In</button>
+					<?php if (isset($_SESSION['failed_login_attempts']) && $_SESSION['failed_login_attempts'] >= $config['max_failed_login_attempts']) {
+						echo 'disabled';
+					} ?>>Sign In</button>
 			</form>
 		</div>
 
@@ -491,7 +491,6 @@ if (isset($_GET['admin-panel'])) {
 	// check if user is admin
 	if (isAdmin()) {
 		$mode = "admin";
-
 	} else {
 		$mode = '';
 	}
@@ -547,7 +546,7 @@ if (!isset($issue) || count($issue) == 0) {
 // Create / Edit issue
 if (isset($_POST["createissue"])) {
 
-	if(checkToken($_POST['token']) == false) {
+	if (checkToken($_POST['token']) == false) {
 		$messageJson = array(
 			'id' => 'refresh_notification',
 			'icon' => 'error',
@@ -633,7 +632,7 @@ if (isset($_GET["deleteissue"])) {
 
 	$id = pdo_escape_string($_GET['id']);
 
-	if(checkToken($_GET['token']) == false) {
+	if (checkToken($_GET['token']) == false) {
 		$messageJson = array(
 			'id' => 'refresh_notification',
 			'icon' => 'error',
@@ -686,7 +685,7 @@ if (isset($_GET["deleteissue"])) {
 if (isset($_GET["changepriority"])) {
 	$id = pdo_escape_string($_GET['id']);
 
-	if(checkToken($_POST['token']) == false) {
+	if (checkToken($_POST['token']) == false) {
 		$messageJson = array(
 			'id' => 'refresh_notification',
 			'icon' => 'error',
@@ -729,7 +728,7 @@ if (isset($_GET["changepriority"])) {
 if (isset($_GET["changestatus"])) {
 	$id = pdo_escape_string($_GET['id']);
 
-	if(checkToken($_POST['token']) == false) {
+	if (checkToken($_POST['token']) == false) {
 		$messageJson = array(
 			'id' => 'refresh_notification',
 			'icon' => 'error',
@@ -771,7 +770,7 @@ if (isset($_GET["changestatus"])) {
 if (isset($_POST["unwatch"])) {
 	$id = pdo_escape_string($_POST['id']);
 
-	if(checkToken($_POST['token']) == false) {
+	if (checkToken($_POST['token']) == false) {
 		$messageJson = array(
 			'id' => 'refresh_notification',
 			'icon' => 'error',
@@ -800,7 +799,7 @@ if (isset($_POST["unwatch"])) {
 if (isset($_POST["watch"])) {
 	$id = pdo_escape_string($_POST['id']);
 
-	if(checkToken($_POST['token']) == false) {
+	if (checkToken($_POST['token']) == false) {
 		$messageJson = array(
 			'id' => 'refresh_notification',
 			'icon' => 'error',
@@ -831,7 +830,7 @@ if (isset($_POST["createcomment"])) {
 
 	$issue_id = pdo_escape_string($_POST['issue_id']);
 
-	if(checkToken($_POST['token']) == false) {
+	if (checkToken($_POST['token']) == false) {
 		$messageJson = array(
 			'id' => 'refresh_notification',
 			'icon' => 'error',
@@ -879,7 +878,7 @@ if (isset($_POST["createcomment"])) {
 if (isset($_GET["deletecomment"])) {
 	$id = pdo_escape_string($_GET['id']);
 
-	if(checkToken($_GET['token']) == false) {
+	if (checkToken($_GET['token']) == false) {
 		$messageJson = array(
 			'id' => 'refresh_notification',
 			'icon' => 'error',
@@ -923,76 +922,75 @@ if (isset($_GET["deletecomment"])) {
 	$_SESSION['messageJson'] = $messageJson;
 	header("Location: {$_SERVER['PHP_SELF']}?id=$id");
 	exit();
-
 }
 
 // search issues
 if (isset($_GET["search"])) {
 	// $mode = "search";
 	if (isset($_GET['query']) && $_GET['query'] != '') {
-	if (strlen($_GET['query']) > 2) {
-	
-	$query = pdo_escape_string($_GET['query']);
-	
-	$options = array();
-	if (isset($_GET['status'])) {
-		$options['status'] = pdo_escape_string($_GET['status']);
-	}
-	if (isset($_GET['priority'])) {
-		$options['priority'] = pdo_escape_string($_GET['priority']);
-	}
-	if (isset($_GET['startDate'])) {
-		$options['startDate'] = pdo_escape_string($_GET['startDate']);
-	}
-	if (isset($_GET['endDate'])) {
-		$options['endDate'] = pdo_escape_string($_GET['endDate']);
-	}
+		if (strlen($_GET['query']) > 2) {
 
-	$searchIssues = searchIssues($query, $options);
-	$execution_time = $searchIssues['execution_time'];
-	$searchIssues = $searchIssues['issues'];
-	// if is empty, display error
-	if (count($searchIssues) == 0) {
-		$message = "No results found";
-		$messageJson = array(
-			"icon" => "error",
-			"title" => "No results found",
-			"subtitle" => "No results found. Try a different search query or check your filters",
-			"actions" => ["OK"],
-			"dismiss" => 3200
-		);
-	} else {
-		$issues = $searchIssues;
+			$query = pdo_escape_string($_GET['query']);
 
-		// add comment count
-		foreach ($issues as $i => $issue) {
-			$issues[$i]['comment_count'] = $db->query("SELECT count(*) FROM " . $DB_PREFIX . "comments WHERE issue_id='{$issue['id']}'")->fetchColumn();
-			if ($obfuscateId) {
-				$issues[$i]['id'] = obfuscateId($issue['id']);
+			$options = array();
+			if (isset($_GET['status'])) {
+				$options['status'] = pdo_escape_string($_GET['status']);
 			}
-		}
-		unset($i, $issue, $comments);
+			if (isset($_GET['priority'])) {
+				$options['priority'] = pdo_escape_string($_GET['priority']);
+			}
+			if (isset($_GET['startDate'])) {
+				$options['startDate'] = pdo_escape_string($_GET['startDate']);
+			}
+			if (isset($_GET['endDate'])) {
+				$options['endDate'] = pdo_escape_string($_GET['endDate']);
+			}
 
-		$searchQuery = $query;
-		// $execution_time = round($execution_time, 2);
-		// $messageJson = array(
-		// 	"icon" => "success",
-		// 	"title" => "Search Results",
-		// 	"subtitle" => "Got " . count($issues) . " results for search query: " . $query . " in " . $execution_time . " ms",
-		// 	"actions" => ["OK"],
-		// 	"dismiss" => 3200
-		// );
-	}
-} else {
-	$message = "Search query must be at least 3 characters long";
-	$messageJson = array(
-		"icon" => "error",
-		"title" => "Search query too short",
-		"subtitle" => "Search query must be at least 3 characters long",
-		"actions" => ["OK"],
-		"dismiss" => 3200
-	);
-}
+			$searchIssues = searchIssues($query, $options);
+			$execution_time = $searchIssues['execution_time'];
+			$searchIssues = $searchIssues['issues'];
+			// if is empty, display error
+			if (count($searchIssues) == 0) {
+				$message = "No results found";
+				$messageJson = array(
+					"icon" => "error",
+					"title" => "No results found",
+					"subtitle" => "No results found. Try a different search query or check your filters",
+					"actions" => ["OK"],
+					"dismiss" => 3200
+				);
+			} else {
+				$issues = $searchIssues;
+
+				// add comment count
+				foreach ($issues as $i => $issue) {
+					$issues[$i]['comment_count'] = $db->query("SELECT count(*) FROM " . $DB_PREFIX . "comments WHERE issue_id='{$issue['id']}'")->fetchColumn();
+					if ($obfuscateId) {
+						$issues[$i]['id'] = obfuscateId($issue['id']);
+					}
+				}
+				unset($i, $issue, $comments);
+
+				$searchQuery = $query;
+				// $execution_time = round($execution_time, 2);
+				// $messageJson = array(
+				// 	"icon" => "success",
+				// 	"title" => "Search Results",
+				// 	"subtitle" => "Got " . count($issues) . " results for search query: " . $query . " in " . $execution_time . " ms",
+				// 	"actions" => ["OK"],
+				// 	"dismiss" => 3200
+				// );
+			}
+		} else {
+			$message = "Search query must be at least 3 characters long";
+			$messageJson = array(
+				"icon" => "error",
+				"title" => "Search query too short",
+				"subtitle" => "Search query must be at least 3 characters long",
+				"actions" => ["OK"],
+				"dismiss" => 3200
+			);
+		}
 	} else {
 		$message = "No search query provided";
 		$messageJson = array(
@@ -1014,7 +1012,7 @@ if (isset($_POST["edituser"])) {
 	// check if user is admin
 	if (isAdmin() && isset($_POST["username"]) && isset($_POST["email"]) && isset($_POST["status"])) {
 
-		if(checkToken($_POST['token']) == false) {
+		if (checkToken($_POST['token']) == false) {
 			$messageJson = array(
 				'id' => 'refresh_notification',
 				'icon' => 'error',
@@ -1048,13 +1046,13 @@ if (isset($_POST["edituser"])) {
 			// if user id is 1, dont do anything
 			if ($users[0]['role'] == 5) {
 				$message = "Cannot edit admin";
-				
-			$messageJson = array(
-				"icon" => "warning",
-				"title" => "Cannot edit admin",
-				"subtitle" => "Cannot edit the admin account",
-				"actions" => ["Understood"]
-			);
+
+				$messageJson = array(
+					"icon" => "warning",
+					"title" => "Cannot edit admin",
+					"subtitle" => "Cannot edit the admin account",
+					"actions" => ["Understood"]
+				);
 				// log action
 				logAction('Trial to edit admin', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to edit the administator account');
 			} else {
@@ -1066,7 +1064,7 @@ if (isset($_POST["edituser"])) {
 					logAction('User created', 1, 'User created by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') with username: "' . $username . '", email: "' . $email . '", status: ' . $status);
 
 					$message = "User created";
-					
+
 					$messageJson = array(
 						"icon" => "success",
 						"title" => "User Created",
@@ -1095,8 +1093,7 @@ if (isset($_POST["edituser"])) {
 
 			$_SESSION['messageJson'] = $messageJson;
 			header("Location: ?admin-panel&message=" . $message);
-	exit();
-
+			exit();
 		}
 	}
 }
@@ -1108,7 +1105,7 @@ if (isset($_GET["deleteuser"])) {
 	// check if user is admin
 	if (isAdmin() && isset($_GET["userId"])) {
 
-		if(checkToken($_GET['token']) == false) {
+		if (checkToken($_GET['token']) == false) {
 			$messageJson = array(
 				'id' => 'refresh_notification',
 				'icon' => 'error',
@@ -1168,8 +1165,7 @@ if (isset($_GET["deleteuser"])) {
 		$_SESSION['messageJson'] = $messageJson;
 
 		header("Location: ?admin-panel&message=" . $message);
-	exit();
-
+		exit();
 	}
 }
 
@@ -1178,7 +1174,7 @@ if (isset($_GET["banuser"])) {
 	// check if user is admin
 	if (isAdmin() && isset($_GET['userId'])) {
 
-		if(checkToken($_GET['token']) == false) {
+		if (checkToken($_GET['token']) == false) {
 			$messageJson = array(
 				'id' => 'refresh_notification',
 				'icon' => 'error',
@@ -1241,8 +1237,7 @@ if (isset($_GET["banuser"])) {
 		$_SESSION['messageJson'] = $messageJson;
 
 		header("Location: ?admin-panel&message=" . $message);
-	exit();
-
+		exit();
 	}
 }
 
@@ -1253,7 +1248,7 @@ if (isset($_GET["unbanuser"])) {
 	// check if user is admin
 	if (isAdmin() && isset($_GET["userId"])) {
 
-		if(checkToken($_GET['token']) == false) {
+		if (checkToken($_GET['token']) == false) {
 			$messageJson = array(
 				'id' => 'refresh_notification',
 				'icon' => 'error',
@@ -1288,37 +1283,36 @@ if (isset($_GET["unbanuser"])) {
 			);
 		} else {
 
-		if (count($users) > 0) {
-			$query = "UPDATE users SET role='2' WHERE id='$id'"; // unban
-			$db->exec($query);
-			logAction('User unbanned', 2, 'User with id #u' . $id . ' was unbanned by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
-			$message = "User unbanned";
-			$messageJson = array(
-				"icon" => "success",
-				"title" => "User Unbanned",
-				"subtitle" => "User unbanned successfully",
-				"actions" => ["OK"],
-				"dismiss" => 3200
-			);
-		} else {
-			logAction('Trial to unban user', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to unban a user with id #u' . $id . ', but failed');
-			$message = "User not found";
-			$messageJson = array(
-				"icon" => "error",
-				"title" => "User Not Found",
-				"subtitle" => "User not found",
-				"actions" => ["OK"],
-				"dismiss" => 3200
-			);
+			if (count($users) > 0) {
+				$query = "UPDATE users SET role='2' WHERE id='$id'"; // unban
+				$db->exec($query);
+				logAction('User unbanned', 2, 'User with id #u' . $id . ' was unbanned by #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ')');
+				$message = "User unbanned";
+				$messageJson = array(
+					"icon" => "success",
+					"title" => "User Unbanned",
+					"subtitle" => "User unbanned successfully",
+					"actions" => ["OK"],
+					"dismiss" => 3200
+				);
+			} else {
+				logAction('Trial to unban user', 3, 'User #u' . $_SESSION['t1t']['id'] . ' (' . $_SESSION['t1t']['username'] . ') tried to unban a user with id #u' . $id . ', but failed');
+				$message = "User not found";
+				$messageJson = array(
+					"icon" => "error",
+					"title" => "User Not Found",
+					"subtitle" => "User not found",
+					"actions" => ["OK"],
+					"dismiss" => 3200
+				);
+			}
+
+			$_SESSION['messageJson'] = $messageJson;
+
+			header("Location: ?admin-panel&message=" . $message);
+			exit();
 		}
-
-		$_SESSION['messageJson'] = $messageJson;
-
-		header("Location: ?admin-panel&message=" . $message);
-	exit();
-
 	}
-}
 }
 
 if (isset($_GET["getupdateinfo"]) && isAdmin()) {
@@ -1385,14 +1379,13 @@ if (isset($_GET["getupdateinfo"]) && isAdmin()) {
 		$_SESSION['messageJson'] = $messageJson;
 
 		header("Location: ?admin-panel&message=" . $message);
-	exit();
-
+		exit();
 	}
 }
 
 if (isset($_GET["clearlogs"]) && isAdmin()) {
 
-	if(checkToken($_GET['token']) == false) {
+	if (checkToken($_GET['token']) == false) {
 		$messageJson = array(
 			'id' => 'refresh_notification',
 			'icon' => 'error',
@@ -1420,7 +1413,6 @@ if (isset($_GET["clearlogs"]) && isAdmin()) {
 
 	header("Location: ?admin-panel&message=Logs cleared");
 	exit();
-
 }
 
 if (isset($_GET["exportlogs"]) && isAdmin()) {
@@ -1447,7 +1439,7 @@ $settingsBlacklist = array(
 
 if (isset($_GET["savesettings"]) && isAdmin()) {
 
-	if(checkToken($_GET['token']) == false) {
+	if (checkToken($_GET['token']) == false) {
 		$messageJson = array(
 			'id' => 'refresh_notification',
 			'icon' => 'error',
@@ -1461,7 +1453,7 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 		header("Location: ?admin-panel");
 		exit();
 	}
-	
+
 	// save settings
 	foreach ($_POST as $key => $value) {
 		// check if setting is in blacklist
@@ -1565,7 +1557,7 @@ if (isset($_GET["savesettings"]) && isAdmin()) {
 
 if (isset($_GET["resetsettings"]) && isAdmin()) {
 
-	if(checkToken($_GET['token']) == false) {
+	if (checkToken($_GET['token']) == false) {
 		$messageJson = array(
 			'id' => 'refresh_notification',
 			'icon' => 'error',
@@ -1594,8 +1586,6 @@ if (isset($_GET["resetsettings"]) && isAdmin()) {
 
 	header("Location: ?admin-panel&message=Settings reset");
 	exit();
-
-
 }
 
 
@@ -1708,7 +1698,7 @@ function setDefaults()
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('show_footer', '1', '" . date("Y-m-d H:i:s") . "')");
 	}
 	if (!isset($config['search'])) {
-		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('search', '0', '" . date("Y-m-d H:i:s") . "')");
+		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('search', '1', '" . date("Y-m-d H:i:s") . "')");
 	}
 	if (!isset($config['allow_user_edits'])) {
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('allow_user_edits', '0', '" . date("Y-m-d H:i:s") . "')");
@@ -1719,7 +1709,7 @@ function setDefaults()
 	if (!isset($config['max_failed_login_attempts'])) {
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('max_failed_login_attempts', '5', '" . date("Y-m-d H:i:s") . "')");
 	}
-	
+
 	if (!isset($config['enable_mail_notifications'])) {
 		$db->exec("INSERT INTO " . $DB_PREFIX . "config (key, value, entrytime) values('enable_mail_notifications', '0', '" . date("Y-m-d H:i:s") . "')");
 	}
@@ -1796,7 +1786,7 @@ function legacySearchIssues($search, $options)
 
 function searchIssues($search, $options)
 {
-	
+
 	global $db;
 	global $DB_PREFIX;
 	$issues = array();
@@ -1816,7 +1806,7 @@ function searchIssues($search, $options)
 		"limit" => 10
 	); 
 	*/
-	if(count($issues) == 0){
+	if (count($issues) == 0) {
 		// $query = "SELECT * FROM " . $DB_PREFIX . "issues WHERE title LIKE '%$search%' OR description LIKE '%$search%'";
 		$query = '';
 		if (isset($options['status']) && $options['status'] != '' && $options['status'] != 'all') {
@@ -1881,86 +1871,88 @@ function searchIssues($search, $options)
 		}
 	}
 
-    $end_time = microtime(true); // End the timer
-    
-    $execution_time = ($end_time - $start_time) * 1000000; // Convert to microseconds
+	$end_time = microtime(true); // End the timer
+
+	$execution_time = ($end_time - $start_time) * 1000000; // Convert to microseconds
 	// die(json_encode(array("issues" => $issues, "execution_time" => $execution_time)));
 
 	return array("issues" => $issues, "execution_time" => $execution_time);
 }
 
-function fuzzySearch($query, $array) {
-    $start_time = microtime(true); // Start the timer
-    
-    $results = [];
-    $query = strtolower($query); // Convert query to lowercase
-    $queryLength = strlen($query); // Pre-calculate the length of the query
-    
-    // Define a function to calculate match percentage using Levenshtein distance
-    function getMatchPercentage($query, $item, $queryLength) {
-        $itemLength = strlen($item); // Pre-calculate the length of the item
-        $levDistance = levenshtein($query, $item);
-        $maxLen = max($queryLength, $itemLength);
-        if ($maxLen == 0) {
-            return 1; // both strings are empty
-        }
-        return 1 * (1 - ($levDistance / $maxLen));
-    }
-    
-    // Loop through each item in the array and calculate the match percentage
-    foreach ($array as $item) {
-        $lowerItem = strtolower($item); // Convert item to lowercase
-        
-        // Early exit for exact matches
-        if ($query === $lowerItem) {
-            $results[] = [
-                'item' => $item,
-                'match_percentage' => 1
-            ];
-            continue;
-        }
-        
-        // Check if the item contains spaces
-        if (strpos($lowerItem, ' ') !== false) {
-            // Split the item into individual words
-            $words = explode(' ', $lowerItem);
-            $totalPercentage = 0;
-            $wordCount = count($words);
-            
-            // Calculate the match percentage for each word and sum them up
-            foreach ($words as $word) {
-                $percentage = getMatchPercentage($query, $word, $queryLength);
-                $totalPercentage += $percentage;
-            }
-            
-            // Calculate the average match percentage for the item
-            $averagePercentage = $totalPercentage / $wordCount;
-            
-            $results[] = [
-                'item' => $item,
-                'match_percentage' => $averagePercentage
-            ];
-        } else {
-            // Calculate the match percentage for the item as usual
-            $percentage = getMatchPercentage($query, $lowerItem, $queryLength);
-            
-            $results[] = [
-                'item' => $item,
-                'match_percentage' => $percentage
-            ];
-        }
-    }
-    
-    // Sort the results by match percentage in descending order
-    // usort($results, function($a, $b) {
-    //     return $b['match_percentage'] <=> $a['match_percentage'];
-    // });
-    
-    $end_time = microtime(true); // End the timer
-    
-    $execution_time = ($end_time - $start_time) * 1000000; // Convert to microseconds
-    
-    return $results;
+function fuzzySearch($query, $array)
+{
+	$start_time = microtime(true); // Start the timer
+
+	$results = [];
+	$query = strtolower($query); // Convert query to lowercase
+	$queryLength = strlen($query); // Pre-calculate the length of the query
+
+	// Define a function to calculate match percentage using Levenshtein distance
+	function getMatchPercentage($query, $item, $queryLength)
+	{
+		$itemLength = strlen($item); // Pre-calculate the length of the item
+		$levDistance = levenshtein($query, $item);
+		$maxLen = max($queryLength, $itemLength);
+		if ($maxLen == 0) {
+			return 1; // both strings are empty
+		}
+		return 1 * (1 - ($levDistance / $maxLen));
+	}
+
+	// Loop through each item in the array and calculate the match percentage
+	foreach ($array as $item) {
+		$lowerItem = strtolower($item); // Convert item to lowercase
+
+		// Early exit for exact matches
+		if ($query === $lowerItem) {
+			$results[] = [
+				'item' => $item,
+				'match_percentage' => 1
+			];
+			continue;
+		}
+
+		// Check if the item contains spaces
+		if (strpos($lowerItem, ' ') !== false) {
+			// Split the item into individual words
+			$words = explode(' ', $lowerItem);
+			$totalPercentage = 0;
+			$wordCount = count($words);
+
+			// Calculate the match percentage for each word and sum them up
+			foreach ($words as $word) {
+				$percentage = getMatchPercentage($query, $word, $queryLength);
+				$totalPercentage += $percentage;
+			}
+
+			// Calculate the average match percentage for the item
+			$averagePercentage = $totalPercentage / $wordCount;
+
+			$results[] = [
+				'item' => $item,
+				'match_percentage' => $averagePercentage
+			];
+		} else {
+			// Calculate the match percentage for the item as usual
+			$percentage = getMatchPercentage($query, $lowerItem, $queryLength);
+
+			$results[] = [
+				'item' => $item,
+				'match_percentage' => $percentage
+			];
+		}
+	}
+
+	// Sort the results by match percentage in descending order
+	// usort($results, function($a, $b) {
+	//     return $b['match_percentage'] <=> $a['match_percentage'];
+	// });
+
+	$end_time = microtime(true); // End the timer
+
+	$execution_time = ($end_time - $start_time) * 1000000; // Convert to microseconds
+
+	return $results;
 }
 
 function isAdmin()
@@ -2172,7 +2164,8 @@ function getIp()
 	return $ip;
 }
 
-function checkToken($token) {
+function checkToken($token)
+{
 	if (!isset($_SESSION['processToken']) || !isset($token) || $_SESSION['processToken'] != $token) {
 		return false;
 	}
@@ -2447,7 +2440,7 @@ function notify($id, $subject, $body)
 		global $EMAIL;
 		$headers = "From: $EMAIL" . "\r\n" . 'X-Mailer: PHP/' . phpversion();
 		try {
-			
+
 			// currently not supported. Needs work
 			// mail($to, $subject, $body, $headers);   
 
@@ -3110,215 +3103,213 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 		.tip.active {
 			display: block;
 		}
-
-
 	</style>
 
 	<style>
-        :root {
-            --hue: 223;
-            --transDur: 0.15s;
-        }
+		:root {
+			--hue: 223;
+			--transDur: 0.15s;
+		}
 
 
-        .notification {
-            padding-bottom: 0.75em;
-            position: fixed;
-            top: 1.5em;
-            right: 1.5em;
-            width: 18.75em;
-            max-width: calc(100% - 3em);
-            transition: transform 0.15s ease-out;
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            user-select: none;
-            color: var(--text-main);
-            font-size: calc(16px + (24 - 16) * (100vw - 320px) / (1280 - 320));
+		.notification {
+			padding-bottom: 0.75em;
+			position: fixed;
+			top: 1.5em;
+			right: 1.5em;
+			width: 18.75em;
+			max-width: calc(100% - 3em);
+			transition: transform 0.15s ease-out;
+			-webkit-user-select: none;
+			-moz-user-select: none;
+			user-select: none;
+			color: var(--text-main);
+			font-size: calc(16px + (24 - 16) * (100vw - 320px) / (1280 - 320));
 
-        }
+		}
 
-        .notification__box,
-        .notification__content,
-        .notification__btns {
-            display: flex;
-        }
+		.notification__box,
+		.notification__content,
+		.notification__btns {
+			display: flex;
+		}
 
-        .notification__box,
-        .notification__content {
-            align-items: center;
-        }
+		.notification__box,
+		.notification__content {
+			align-items: center;
+		}
 
-        .notification__box {
-            animation: flyIn 0.3s ease-out;
-            background-color: var(--background-alt);
-            border-radius: 0.75em;
-            box-shadow: 0 0.5em 1em hsla(var(--hue), 10%, 10%, 0.1);
-            height: 4em;
-            transition:
-                background-color var(--transDur),
-                color var(--transDur);
-        }
+		.notification__box {
+			animation: flyIn 0.3s ease-out;
+			background-color: var(--background-alt);
+			border-radius: 0.75em;
+			box-shadow: 0 0.5em 1em hsla(var(--hue), 10%, 10%, 0.1);
+			height: 4em;
+			transition:
+				background-color var(--transDur),
+				color var(--transDur);
+		}
 
-        .notification--out .notification__box {
-            animation: flyOut 0.3s ease-out forwards;
-        }
+		.notification--out .notification__box {
+			animation: flyOut 0.3s ease-out forwards;
+		}
 
-        .notification__content {
-            padding: 0.375em 1em;
-            width: 100%;
-            height: 100%;
-        }
+		.notification__content {
+			padding: 0.375em 1em;
+			width: 100%;
+			height: 100%;
+		}
 
-        .notification__icon {
-            flex-shrink: 0;
-            margin-right: 0.75em;
-            width: 2em;
-            height: 2em;
-        }
+		.notification__icon {
+			flex-shrink: 0;
+			margin-right: 0.75em;
+			width: 2em;
+			height: 2em;
+		}
 
-        .notification__icon-svg {
-            width: 100%;
-            height: auto;
-        }
+		.notification__icon-svg {
+			width: 100%;
+			height: auto;
+		}
 
-        .notification__text {
-            line-height: 1.333;
-        }
+		.notification__text {
+			line-height: 1.333;
+		}
 
-        .notification__text-title {
-            font-size: 0.75em;
-            font-weight: bold;
-        }
+		.notification__text-title {
+			font-size: 0.75em;
+			font-weight: bold;
+		}
 
-        .notification__text-subtitle {
-            font-size: 0.6em;
-            opacity: 0.75;
-        }
+		.notification__text-subtitle {
+			font-size: 0.6em;
+			opacity: 0.75;
+		}
 
-        .notification__btns {
-            box-shadow: -1px 0 0 hsla(var(--hue), 10%, 10%, 0.15);
-            flex-direction: column;
-            flex-shrink: 0;
-            min-width: 4em;
-            height: 100%;
-            transition: box-shadow var(--transDur);
-        }
+		.notification__btns {
+			box-shadow: -1px 0 0 hsla(var(--hue), 10%, 10%, 0.15);
+			flex-direction: column;
+			flex-shrink: 0;
+			min-width: 4em;
+			height: 100%;
+			transition: box-shadow var(--transDur);
+		}
 
-        .notification__btn {
-            background-color: transparent;
-            box-shadow: 0 0 0 hsla(var(--hue), 10%, 10%, 0.5) inset;
-            font-size: 0.6em;
-            line-height: 1;
-            font-weight: 500;
-            height: 100%;
-            padding: 0;
-            margin: 0;
-            transition:
-                background-color var(--transDur),
-                color var(--transDur);
-            -webkit-appearance: none;
-            appearance: none;
-            -webkit-tap-highlight-color: transparent;
-        }
+		.notification__btn {
+			background-color: transparent;
+			box-shadow: 0 0 0 hsla(var(--hue), 10%, 10%, 0.5) inset;
+			font-size: 0.6em;
+			line-height: 1;
+			font-weight: 500;
+			height: 100%;
+			padding: 0;
+			margin: 0;
+			transition:
+				background-color var(--transDur),
+				color var(--transDur);
+			-webkit-appearance: none;
+			appearance: none;
+			-webkit-tap-highlight-color: transparent;
+		}
 
-        .notification__btn-text {
-            display: inline-block;
-            pointer-events: none;
-        }
+		.notification__btn-text {
+			display: inline-block;
+			pointer-events: none;
+		}
 
-        .notification__btn:first-of-type {
-            border-radius: 0 0.75rem 0 0;
-        }
+		.notification__btn:first-of-type {
+			border-radius: 0 0.75rem 0 0;
+		}
 
-        .notification__btn:last-of-type {
-            border-radius: 0 0 0.75rem 0;
-        }
+		.notification__btn:last-of-type {
+			border-radius: 0 0 0.75rem 0;
+		}
 
-        .notification__btn:only-child {
-            border-radius: 0 0.75rem 0.75rem 0;
-        }
+		.notification__btn:only-child {
+			border-radius: 0 0.75rem 0.75rem 0;
+		}
 
-        .notification__btn+.notification__btn {
-            box-shadow: 0 -1px 0 hsla(var(--hue), 10%, 10%, 0.15);
-            font-weight: 400;
-        }
+		.notification__btn+.notification__btn {
+			box-shadow: 0 -1px 0 hsla(var(--hue), 10%, 10%, 0.15);
+			font-weight: 400;
+		}
 
-        .notification__btn:active,
-        .notification__btn:focus {
-            background-color: hsl(var(--hue), 10%, 95%);
-        }
+		.notification__btn:active,
+		.notification__btn:focus {
+			background-color: hsl(var(--hue), 10%, 95%);
+		}
 
-        .notification__btn:focus {
-            outline: transparent;
-        }
+		.notification__btn:focus {
+			outline: transparent;
+		}
 
-        .notification__btn:hover {
-            background-color: transparent;
-        }
+		.notification__btn:hover {
+			background-color: transparent;
+		}
 
-        @supports selector(:focus-visible) {
-            .notification__btn:focus {
-                background-color: transparent;
-            }
+		@supports selector(:focus-visible) {
+			.notification__btn:focus {
+				background-color: transparent;
+			}
 
-            .notification__btn:focus-visible,
-            .notification__btn:active {
-                background-color: hsl(var(--hue), 10%, 95%);
-            }
-        }
+			.notification__btn:focus-visible,
+			.notification__btn:active {
+				background-color: hsl(var(--hue), 10%, 95%);
+			}
+		}
 
-        /* Dark theme */
-        @media (prefers-color-scheme: dark) {
-            .notification__box {
-                background-color: hsl(var(--hue), 10%, 30%);
-            }
+		/* Dark theme */
+		@media (prefers-color-scheme: dark) {
+			.notification__box {
+				background-color: hsl(var(--hue), 10%, 30%);
+			}
 
-            .notification__btns {
-                box-shadow: -1px 0 0 hsla(var(--hue), 10%, 90%, 0.15);
-            }
+			.notification__btns {
+				box-shadow: -1px 0 0 hsla(var(--hue), 10%, 90%, 0.15);
+			}
 
-            .notification__btn+.notification__btn {
-                box-shadow: 0 -1px 0 hsla(var(--hue), 10%, 90%, 0.15);
-            }
+			.notification__btn+.notification__btn {
+				box-shadow: 0 -1px 0 hsla(var(--hue), 10%, 90%, 0.15);
+			}
 
-            .notification__btn:active,
-            .notification__btn:focus {
-                background-color: hsl(var(--hue), 10%, 35%);
-            }
+			.notification__btn:active,
+			.notification__btn:focus {
+				background-color: hsl(var(--hue), 10%, 35%);
+			}
 
-            @supports selector(:focus-visible) {
-                .notification__btn:focus {
-                    background-color: transparent;
-                }
+			@supports selector(:focus-visible) {
+				.notification__btn:focus {
+					background-color: transparent;
+				}
 
-                .notification__btn:focus-visible,
-                .notification__btn:active {
-                    background-color: hsl(var(--hue), 10%, 35%);
-                }
-            }
-        }
+				.notification__btn:focus-visible,
+				.notification__btn:active {
+					background-color: hsl(var(--hue), 10%, 35%);
+				}
+			}
+		}
 
-        /* Animations */
-        @keyframes flyIn {
-            from {
-                transform: translateX(calc(100% + 1.5em));
-            }
+		/* Animations */
+		@keyframes flyIn {
+			from {
+				transform: translateX(calc(100% + 1.5em));
+			}
 
-            to {
-                transform: translateX(0);
-            }
-        }
+			to {
+				transform: translateX(0);
+			}
+		}
 
-        @keyframes flyOut {
-            from {
-                transform: translateX(0);
-            }
+		@keyframes flyOut {
+			from {
+				transform: translateX(0);
+			}
 
-            to {
-                transform: translateX(calc(100% + 1.5em));
-            }
-        }
-    </style>
+			to {
+				transform: translateX(calc(100% + 1.5em));
+			}
+		}
+	</style>
 
 	<script>
 		<?php echo insertJquery(); ?>
@@ -3515,41 +3506,41 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 	?>
 	<input id="notificationJson" type="hidden" value='<?php if (isset($messageJson)) echo json_encode($messageJson); ?>' />
 	<input id="processToken" type="hidden" value='<?php echo $_SESSION['processToken']; ?>' />
-<svg display="none">
-        <symbol id="notification_clock" viewBox="0 0 32 32">
-            <circle r="15" cx="16" cy="16" fill="none" stroke="currentColor" stroke-width="2" />
-            <polyline points="16,7 16,16 23,16" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round" />
-        </symbol>
-        <symbol id="notification_error" viewBox="0 0 32 32">
-            <circle r="15" cx="16" cy="16" fill="none" stroke="hsl(13,90%,55%)" stroke-width="2" />
-            <line x1="10" y1="10" x2="22" y2="22" stroke="hsl(13,90%,55%)" stroke-width="2" stroke-linecap="round" />
-            <line x1="22" y1="10" x2="10" y2="22" stroke="hsl(13,90%,55%)" stroke-width="2" stroke-linecap="round" />
-        </symbol>
-        <symbol id="notification_message" viewBox="0 0 32 32">
-            <polygon points="1,6 31,6 31,26 1,26" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round" />
-            <polyline points="1,6 16,18 31,6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round" />
-        </symbol>
-        <symbol id="notification_success" viewBox="0 0 32 32">
-            <circle r="15" cx="16" cy="16" fill="none" stroke="hsl(93,90%,40%)" stroke-width="2" />
-            <polyline points="9,18 13,22 23,12" fill="none" stroke="hsl(93,90%,40%)" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round" />
-        </symbol>
-        <symbol id="notification_up" viewBox="0 0 32 32">
-            <circle r="15" cx="16" cy="16" fill="none" stroke="currentColor" stroke-width="2" />
-            <polyline points="11,15 16,10 21,15" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round" />
-            <line x1="16" y1="10" x2="16" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-        </symbol>
-        <symbol id="notification_warning" viewBox="0 0 32 32">
-            <polygon points="16,1 31,31 1,31" fill="none" stroke="hsl(33,90%,55%)" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round" />
-            <line x1="16" y1="12" x2="16" y2="20" stroke="hsl(33,90%,55%)" stroke-width="2" stroke-linecap="round" />
-            <line x1="16" y1="25" x2="16" y2="25" stroke="hsl(33,90%,55%)" stroke-width="3" stroke-linecap="round" />
-        </symbol>
-    </svg>
+	<svg display="none">
+		<symbol id="notification_clock" viewBox="0 0 32 32">
+			<circle r="15" cx="16" cy="16" fill="none" stroke="currentColor" stroke-width="2" />
+			<polyline points="16,7 16,16 23,16" fill="none" stroke="currentColor" stroke-width="2"
+				stroke-linecap="round" stroke-linejoin="round" />
+		</symbol>
+		<symbol id="notification_error" viewBox="0 0 32 32">
+			<circle r="15" cx="16" cy="16" fill="none" stroke="hsl(13,90%,55%)" stroke-width="2" />
+			<line x1="10" y1="10" x2="22" y2="22" stroke="hsl(13,90%,55%)" stroke-width="2" stroke-linecap="round" />
+			<line x1="22" y1="10" x2="10" y2="22" stroke="hsl(13,90%,55%)" stroke-width="2" stroke-linecap="round" />
+		</symbol>
+		<symbol id="notification_message" viewBox="0 0 32 32">
+			<polygon points="1,6 31,6 31,26 1,26" fill="none" stroke="currentColor" stroke-width="2"
+				stroke-linecap="round" stroke-linejoin="round" />
+			<polyline points="1,6 16,18 31,6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+				stroke-linejoin="round" />
+		</symbol>
+		<symbol id="notification_success" viewBox="0 0 32 32">
+			<circle r="15" cx="16" cy="16" fill="none" stroke="hsl(93,90%,40%)" stroke-width="2" />
+			<polyline points="9,18 13,22 23,12" fill="none" stroke="hsl(93,90%,40%)" stroke-width="2"
+				stroke-linecap="round" stroke-linejoin="round" />
+		</symbol>
+		<symbol id="notification_up" viewBox="0 0 32 32">
+			<circle r="15" cx="16" cy="16" fill="none" stroke="currentColor" stroke-width="2" />
+			<polyline points="11,15 16,10 21,15" fill="none" stroke="currentColor" stroke-width="2"
+				stroke-linecap="round" stroke-linejoin="round" />
+			<line x1="16" y1="10" x2="16" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+		</symbol>
+		<symbol id="notification_warning" viewBox="0 0 32 32">
+			<polygon points="16,1 31,31 1,31" fill="none" stroke="hsl(33,90%,55%)" stroke-width="2"
+				stroke-linecap="round" stroke-linejoin="round" />
+			<line x1="16" y1="12" x2="16" y2="20" stroke="hsl(33,90%,55%)" stroke-width="2" stroke-linecap="round" />
+			<line x1="16" y1="25" x2="16" y2="25" stroke="hsl(33,90%,55%)" stroke-width="3" stroke-linecap="round" />
+		</symbol>
+	</svg>
 	<div id='container'>
 		<div id="menu">
 			<?php
@@ -3693,23 +3684,20 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 					?>
 
 							<script>
-								var elementId123 = '<?php 
-								if($mode == "admin") {
-								// echo $mode == "admin" ? "confirmDelete" : "confirmDeleteButton"; 
-								echo "confirmDelete";
-								} else if ($mode == "issue") {
-									echo "confirmDeleteIssue";
-								} else {
-									echo "confirmDelete";
-								}
-								
-								?>';
+								var elementId123 = '<?php
+													if ($mode == "admin") {
+														// echo $mode == "admin" ? "confirmDelete" : "confirmDeleteButton"; 
+														echo "confirmDelete";
+													} else if ($mode == "issue") {
+														echo "confirmDeleteIssue";
+													} else {
+														echo "confirmDelete";
+													}
+
+													?>';
 							</script>
 
-							<button onclick="
-							<?php if($mode == 'issue') { echo "document.getElementById('create').close();"; } ?>
-							document.getElementById(elementId123).showModal();
-							document.getElementById(elementId123).focus();" style="background-color: #f85149;">Delete</button>
+							<button type="button" onclick="<?php if ($mode == 'issue') { echo 'document.getElementById(`create`).close();'; } ?>document.getElementById(elementId123).showModal();document.getElementById(elementId123).focus();" style="background-color: #f85149;">Delete</button>
 					<?php
 						}
 					}
@@ -3854,18 +3842,18 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 						let keysToDelete = [];
 						searchParams.forEach((value, key) => {
 							console.log(key, value);
-						   
 
-						 if
 
-						 ((value == '' || value == null || value == undefined || value == ' ') && key != 'search') {
+							if
+
+							((value == '' || value == null || value == undefined || value == ' ') && key != 'search') {
 								console.log('deleting ' + key);
 								keysToDelete.push(key);
 							} else if (key == 'priority' && value == 'all') {
 								keysToDelete.push(key);
-							} else if(key == 'endDate' && (value == '' || value == null)){ 
+							} else if (key == 'endDate' && (value == '' || value == null)) {
 								keysToDelete.push(key);
-							} else if(key == 'status' && value == '<?php echo $status; ?>'){
+							} else if (key == 'status' && value == '<?php echo $status; ?>') {
 								keysToDelete.push(key);
 							}
 						});
@@ -3907,7 +3895,6 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 						}, 100);
 					});
 					cleanSearchUrlParams();
-
 				</script>
 
 				<div class="issueList">
@@ -4048,7 +4035,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 								<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
 								<circle cx="12" cy="7" r="4"></circle>
 							</svg>
-							<?php echo $issue['user']; ?> - <span title="<?php echo $issue['entrytime']; ?>" onclick="alert('<?php echo $issue['entrytime']; ?>');"><?php echo timeToString($issue['entrytime']); ?> ago</span> 
+							<?php echo $issue['user']; ?> - <span title="<?php echo $issue['entrytime']; ?>" onclick="alert('<?php echo $issue['entrytime']; ?>');"><?php echo timeToString($issue['entrytime']); ?> ago</span>
 						</div>
 					</div>
 					<hr style="width: 100%; margin-top: 15px;">
@@ -4068,7 +4055,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 								<option value="2" <?php echo ($issue['priority'] == 2 ? "selected" : ""); ?>>Medium</option>
 								<option value="3" <?php echo ($issue['priority'] == 3 ? "selected" : ""); ?>>Low</option>
 							</select>
-							<input type="hidden" name="token" value="" data-addToken="value"/>
+							<input type="hidden" name="token" value="" data-addToken="value" />
 							<input type="submit" style="display: none;" />
 						</form>
 						<form method="POST" action="<?php echo $_SERVER['PHP_SELF']; ?>?changestatus&id=<?php echo $issue['id']; ?>">
@@ -4094,7 +4081,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 							<label></label>
 							<label></label>
 							<input type="hidden" name="id" value="<?php echo $issue['id']; ?>" />
-							<input type="hidden" name="token" value="" data-addToken="value"/>
+							<input type="hidden" name="token" value="" data-addToken="value" />
 							<?php
 							if ($_SESSION['t1t']['email'] && strpos($issue['notify_emails'], $_SESSION['t1t']['email']) === FALSE) {
 								echo "<input type='hidden' name='watch' value='Watch' />\n";
@@ -4190,8 +4177,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 							<div>
 								<button onclick="document.getElementById('confirmDelete').close();" class="left">Cancel</button>
 								<a class="right important btn" id="confirmDeleteButton" href="?deleteissue&id=<?php echo $issue['id']; ?>" onclick="showLoader(this);"
-								data-addToken="href"
-								>Delete</a>
+									data-addToken="href">Delete</a>
 							</div>
 						</form>
 					</dialog>
@@ -4204,7 +4190,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 						" id="commentForm">
 							<input type="hidden" name="issue_id" value="<?php echo $issue['id']; ?>" />
 							<textarea id="commentInput" name="description" rows="5" cols="50" style="width: 100%;" placeholder="Comment here..."
-							onkeydown="if(event.ctrlKey && event.key == 'Enter'){ this.parentElement.querySelector('button[type=submit]').click(); }"></textarea>
+								onkeydown="if(event.ctrlKey && event.key == 'Enter'){ this.parentElement.querySelector('button[type=submit]').click(); }"></textarea>
 							<a class="right no-text-decoration" target="_blank" title="Markdown Cheatsheet" href="https://gist.github.com/JMcrafter26/b6428ddeb6cd40e3fc99ff6df74ff707#file-edited-markdown-cheat-sheet-md">
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-help-circle">
 									<circle cx="12" cy="12" r="10"></circle>
@@ -4214,7 +4200,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 								<span style="color: var(--text-main);">Markdown Supported</span>
 							</a>
 							<label></label>
-							<input type="hidden" name="token" value="" data-addToken="value"/>
+							<input type="hidden" name="token" value="" data-addToken="value" />
 							<input type="hidden" name="createcomment" value="Comment" />
 							<button type="submit" id="postCommentBtn">Comment</button>
 						</form>
@@ -4386,7 +4372,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 							"obfuscate_id" => "boolean",
 							"allow_user_edits" => "boolean",
 							"max_failed_login_attempts" => "int",
-							
+
 						);
 
 						// sort the settings by the $type keys
@@ -4563,22 +4549,22 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 						// echo var_dump($log);
 					?>
 						<div class="issueItem" style="<?php
-							// background color red if priority is 4 or higher
-							if ($log['priority'] == 5) {
-								echo 'background-color: #f85149;';
-							} ?>">
+														// background color red if priority is 4 or higher
+														if ($log['priority'] == 5) {
+															echo 'background-color: #f85149;';
+														} ?>">
 							<span class="issueStatus <?php
-							// priority 4 and above is .important
-							// priority 3 is warning
-							// priority 2 is active
-							// priority 1 is closed
-							if ($log['priority'] >= 4) {
-								echo 'important';
-							} else if ($log['priority'] >= 2) {
-								echo 'warning';
-							} else {
-								echo 'active';
-							} ?>">
+														// priority 4 and above is .important
+														// priority 3 is warning
+														// priority 2 is active
+														// priority 1 is closed
+														if ($log['priority'] >= 4) {
+															echo 'important';
+														} else if ($log['priority'] >= 2) {
+															echo 'warning';
+														} else {
+															echo 'active';
+														} ?>">
 								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-activity">
 									<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
 								</svg>
@@ -4588,7 +4574,7 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 									<span><?php echo $log['action']; ?></span>
 								</div>
 								<p style="font-size: 0.9rem; margin-top: 5px; margin-bottom: 5px;">
-									<?php 
+									<?php
 									// if details are longer than 200 chars, use <details>
 									if (strlen($log['details']) > 200) {
 										echo "<details><summary>" . substr($log['details'], 0, 200) . "...</summary>" . $log['details'] . "</details>";
@@ -4827,11 +4813,11 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 </script>
 <script>
 	document.addEventListener("notificationAction", (e) => {
-			console.log(`Notification ${e.detail.id} action: ${e.detail.action}`);
-			// if id is refresh_notification and action is Refresh, refresh the page
-			if (e.detail.id == "refresh_notification" && e.detail.action == "Refresh") {
-				location.reload();
-			}
+		console.log(`Notification ${e.detail.id} action: ${e.detail.action}`);
+		// if id is refresh_notification and action is Refresh, refresh the page
+		if (e.detail.id == "refresh_notification" && e.detail.action == "Refresh") {
+			location.reload();
+		}
 	});
 
 	function showNotification() {
@@ -4863,7 +4849,14 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 		}
 		init(args) {
 			console.log(args);
-			const {id, icon, title, subtitle, actions, dismiss} = args;
+			const {
+				id,
+				icon,
+				title,
+				subtitle,
+				actions,
+				dismiss
+			} = args;
 			const block = "notification";
 			const parent = document.body;
 			const xmlnsSVG = "http://www.w3.org/2000/svg";
@@ -5527,30 +5520,30 @@ $_SESSION['processToken'] = bin2hex(random_bytes(32));
 
 		// if message parameter in url is set, remove it 
 		// if (window.location.search.includes('message') || window.location.search.includes('getupdateinfo')) {
-			var url = window.location.href;
+		var url = window.location.href;
 
 
-			// replace &message= and everything after it with nothing
-			url = url.replace(/&message=.*/g, '');
-			// replace &getupdateinfo
-			url = url.replace(/&getupdateinfo/g, '');
-			// replace savesettings with admin-panel
-			url = url.replace(/savesettings/g, 'admin-panel');
-			url = url.replace(/edituser/g, 'admin-panel');
-			url = url.replace(/deleteuser/g, 'admin-panel');
-			url = url.replace(/unbanuser/g, 'admin-panel');
+		// replace &message= and everything after it with nothing
+		url = url.replace(/&message=.*/g, '');
+		// replace &getupdateinfo
+		url = url.replace(/&getupdateinfo/g, '');
+		// replace savesettings with admin-panel
+		url = url.replace(/savesettings/g, 'admin-panel');
+		url = url.replace(/edituser/g, 'admin-panel');
+		url = url.replace(/deleteuser/g, 'admin-panel');
+		url = url.replace(/unbanuser/g, 'admin-panel');
 
-			url = url.replace(/banuser/g, 'admin-panel');
-			url = url.replace(/resetsettings/g, 'admin-panel');
+		url = url.replace(/banuser/g, 'admin-panel');
+		url = url.replace(/resetsettings/g, 'admin-panel');
 
-			// if url is admin-panel, remove everything after it
-			if (url.includes('admin-panel')) {
-				url = url.replace(/admin-panel.*/g, 'admin-panel');
-			}
+		// if url is admin-panel, remove everything after it
+		if (url.includes('admin-panel')) {
+			url = url.replace(/admin-panel.*/g, 'admin-panel');
+		}
 
-			// if there is a & at the end, without anything after it, remove it
-			url = url.replace(/&$/, '');
-			history.replaceState({}, document.title, url);
+		// if there is a & at the end, without anything after it, remove it
+		url = url.replace(/&$/, '');
+		history.replaceState({}, document.title, url);
 		// }
 
 		if (!window.msgShown) {
